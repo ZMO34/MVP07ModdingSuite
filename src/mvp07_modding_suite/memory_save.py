@@ -37,6 +37,7 @@ PLAYER_GENERAL_BITFIELDS = {
     "playerattrib_speed": (83, 7),
     "playerattrib_throwstrength": (90, 4),
     "playerattrib_throwaccuracy": (96, 4),
+    "playerattrib_bunting": (100, 4),
     "playerattrib_fielding": (104, 4),
     "playerattrib_range": (108, 4),
     "playerattrib_durability": (112, 4),
@@ -209,6 +210,8 @@ class MemoryRosterSave:
         eye = result["playerattrib_eyeprotection"]
         result["derived_eyeblack"] = eye & 1
         result["derived_sunglasses_style"] = eye >> 1
+        body_raw = (value >> EXPERIMENTAL_BODYTYPE_BITS[0]) & 0x7
+        result["experimental_bodytype_raw"] = body_raw
         return result
 
     def set_player_general_values(self, index: int, changes: dict[str, int]) -> None:
