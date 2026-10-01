@@ -258,13 +258,23 @@ class MemorySaveDocument(RosterDocument):
         if index is None:
             return {}
         name = self.save_file.player_name(index)
+        left = {
+            key: str(value)
+            for key, value in self.save_file.batting_values(index, "L").items()
+        }
+        right = {
+            key: str(value)
+            for key, value in self.save_file.batting_values(index, "R").items()
+        }
         return {
             "save": {
                 "first_name": name.first_name,
                 "last_name": name.last_name,
                 "player_index": str(index),
                 "packed_attributes_hex": self.save_file.player_payload(index).hex(),
-            }
+            },
+            "lhattrib.dat": left,
+            "rhattrib.dat": right,
         }
 
     def set_player_fields(self, player_id: int, changes: dict[str, dict[str, str]]) -> None:
@@ -279,8 +289,30 @@ class MemorySaveDocument(RosterDocument):
                 save_changes.get("first_name", old.first_name),
                 save_changes.get("last_name", old.last_name),
             )
-        # packed_attributes_hex is intentionally read-only until individual
-        # fields are proven. This guarantees unknown bits are preserved.
+
+        if "lhattrib.dat" in changes:
+            self.save_file.set_batting_values(
+                index,
+                "L",
+                {
+                    key: int(value)
+                    for key, value in changes["lhattrib.dat"].items()
+                    if value != ""
+                },
+            )
+        if "rhattrib.dat" in changes:
+            self.save_file.set_batting_values(
+                index,
+                "R",
+                {
+                    key: int(value)
+                    for key, value in changes["rhattrib.dat"].items()
+                    if value != ""
+                },
+            )
+
+        # The 56-byte general player payload remains preservation-only until
+        # its individual bitfields are proven.
 
     def save(self, path: Path) -> None:
         self.save_file.save(path)
