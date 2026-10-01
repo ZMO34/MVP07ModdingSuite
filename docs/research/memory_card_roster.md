@@ -177,3 +177,87 @@ not the RefPack-compressed text DAT tables used on disc.
 4. Compare a save after a controlled lineup/position edit to isolate the complex
    roster-role DWORD subfields.
 5. Compare a save after a single rating edit to map packed attribute bits.
+
+
+## 2026-10-01 batting tables and create-a-player capacity
+
+### Left/right batting save arrays
+
+Two complete fixed-size batting arrays are present in the memory-card save.
+
+For SLUS-21582:
+
+- vs LHP / `lhattrib` array begins at `0x7F003`
+- vs RHP / `rhattrib` array begins at `0x8EC37`
+- record size: **16 bytes**
+- record indexing matches the save player index
+
+These arrays reproduce the ISO `lhattrib.dat` and `rhattrib.dat` data
+directly for the stock players.
+
+Confirmed writable bitfields inside each 128-bit batting record:
+
+| Field | Bit | Width |
+|---|---:|---:|
+| contact | 32 | 7 |
+| power | 39 | 7 |
+| hit UL | 46 | 2 |
+| hit CL | 48 | 2 |
+| hit LL | 50 | 2 |
+| hit UM | 52 | 2 |
+| hit CM | 54 | 2 |
+| hit LM | 56 | 2 |
+| hit UR | 58 | 2 |
+| hit CR | 60 | 2 |
+| hit LR | 62 | 2 |
+| chase FB | 64 | 4 |
+| chase slow break | 68 | 4 |
+| chase hard break | 72 | 4 |
+| take FB | 76 | 4 |
+| take slow break | 80 | 4 |
+| take hard break | 84 | 4 |
+| miss FB | 88 | 4 |
+| miss slow break | 92 | 4 |
+| miss hard break | 96 | 4 |
+| LF pct | 100 | 6 |
+| CF pct | 107 | 5 |
+| RF pct | 114 | 6 |
+| HR pct | 121 | 4 |
+
+The DAT fields `fb_pct`, `ld_pct`, and `gb_pct` are not independently
+present in these 16-byte records; the remaining high bits are zero in the stock
+save. Those three values are likely derived or stored elsewhere.
+
+The unified GUI now reads and writes the confirmed batting fields directly in
+`.sav` files while preserving every unrelated bit.
+
+### Create-a-player pool
+
+The save contains exactly 25 extra populated-name player records after the
+Default template plus 3,800 stock players:
+
+```
+record 0          Default template
+records 1..3800   stock players
+records 3801..3825 additional player slots
+```
+
+The user independently confirmed that Create-a-Player data is memory-card
+resident and has a hard upper limit. Combined with the exact 25-record reserve,
+the strongest interpretation is that **records 3801..3825 are the 25
+Create-a-Player slots**.
+
+Until a save with at least one explicitly created player is compared, mark the
+25-slot CAP interpretation as **HIGH CONFIDENCE / not yet byte-diff confirmed**.
+
+### Roster-management structures
+
+The memory-card team records preserve the same role DWORD as the ISO and add
+five empty roster slots. The role DWORD has now been decomposed into two batting
+order channels, two defensive-alignment channels, and pitching-role upper bits.
+The separate three-byte rotation indexes are unchanged.
+
+This means the save definitely stores all three Manage Rosters screens:
+- Pitching Rotation
+- Batting Order
+- Defensive Alignment
