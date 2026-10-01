@@ -186,16 +186,75 @@ class RosterSlot:
     role_flags: int
 
     @property
+    def defense_a(self) -> int:
+        """First defensive-alignment channel. 0=not used, 1..10=position code."""
+        return self.role_flags & 0x0F
+
+    @property
+    def defense_b(self) -> int:
+        """Second defensive-alignment channel. 0=not used, 1..10=position code."""
+        return (self.role_flags >> 4) & 0x0F
+
+    @property
+    def batting_pair_code(self) -> int:
+        """Two decimal batting-order digits packed into bits 8..14."""
+        return (self.role_flags >> 8) & 0x7F
+
+    @property
+    def batting_order_a(self) -> int:
+        return self.batting_pair_code // 10
+
+    @property
+    def batting_order_b(self) -> int:
+        return self.batting_pair_code % 10
+
+    @property
+    def extra_role_flags(self) -> int:
+        """Pitching/other role bits, preserving bits 15 and above."""
+        return self.role_flags & ~0x7FFF
+
+    @property
     def inferred_position_code(self) -> int | None:
-        lo = self.role_flags & 0xFF
-        a, b = lo & 0xF, (lo >> 4) & 0xF
+        a, b = self.defense_a, self.defense_b
         return a - 1 if a == b and 1 <= a <= 0xA else None
 
     @property
     def inferred_batting_order(self) -> int | None:
-        hi = (self.role_flags >> 8) & 0xFF
-        codes = [0x0B, 0x16, 0x21, 0x2C, 0x37, 0x42, 0x4D, 0x58, 0x63]
-        return codes.index(hi) + 1 if hi in codes else None
+        a, b = self.batting_order_a, self.batting_order_b
+        return a if a == b and 1 <= a <= 9 else None
+
+    @property
+    def pitching_role(self) -> str | None:
+        extra = self.extra_role_flags
+        if extra == 0x8000:
+            return "SP"
+        if extra == 0x10000:
+            return "Relief-A"
+        if extra == 0x18000:
+            return "Relief-B"
+        if extra == 0x28000:
+            return "Closer"
+        return None
+
+    def with_lineup_assignment(
+        self,
+        *,
+        batting_order_a: int | None = None,
+        batting_order_b: int | None = None,
+        defense_a: int | None = None,
+        defense_b: int | None = None,
+    ) -> int:
+        """Return a role DWORD with lineup fields changed and role bits preserved."""
+        oa = self.batting_order_a if batting_order_a is None else int(batting_order_a)
+        ob = self.batting_order_b if batting_order_b is None else int(batting_order_b)
+        da = self.defense_a if defense_a is None else int(defense_a)
+        db = self.defense_b if defense_b is None else int(defense_b)
+        if not (0 <= oa <= 9 and 0 <= ob <= 9):
+            raise ValueError("Batting-order channels must be 0..9")
+        if not (0 <= da <= 10 and 0 <= db <= 10):
+            raise ValueError("Defensive-alignment channels must be 0..10")
+        order_code = oa * 10 + ob
+        return self.extra_role_flags | (order_code << 8) | (db << 4) | da
 
 
 @dataclass
