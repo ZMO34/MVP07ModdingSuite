@@ -205,21 +205,35 @@ class MemoryRosterSave:
 
     def _build_player_id_index(self) -> dict[int, int]:
         roster_ids = self._roster_player_ids()
-        mapping: dict[int, int] = {}
 
-        # The save contains entries of the form:
+        # Stock SLUS-21582 roster saves contain a compact ID->row lookup region
+        # before the packed player array. Entries are:
         #   u32 player_id, u32 player_index, u32 player_index
-        # They are not guaranteed to be naturally aligned, so scan bytewise.
+        # Search only that pre-player region and select a bijective mapping;
+        # scanning the entire save produces false-positive index-0 triples.
+        start = max(0, self.team_base + TEAM_COUNT * SAVE_TEAM_RECORD_SIZE)
+        end = self.player_base
+        candidates: dict[int, set[int]] = {}
         raw = self.raw
-        limit = len(raw) - 12
-        for off in range(limit):
+        for off in range(start, max(start, end - 11)):
             player_id = int.from_bytes(raw[off:off + 4], "little")
             if player_id not in roster_ids:
                 continue
             a = int.from_bytes(raw[off + 4:off + 8], "little")
             b = int.from_bytes(raw[off + 8:off + 12], "little")
-            if a == b and 0 <= a < SAVE_PLAYER_RECORDS:
-                mapping.setdefault(player_id, a)
+            if a == b and 1 <= a <= 3800:
+                candidates.setdefault(player_id, set()).add(a)
+
+        # Prefer the unique candidate for each stock ID. If multiple candidates
+        # survive, row indices are globally unique, so greedily reject collisions.
+        mapping: dict[int, int] = {}
+        used: set[int] = set()
+        for player_id, indexes in sorted(candidates.items(), key=lambda item: len(item[1])):
+            for index in sorted(indexes):
+                if index not in used:
+                    mapping[player_id] = index
+                    used.add(index)
+                    break
 
         return mapping
 
