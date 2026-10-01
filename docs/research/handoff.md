@@ -113,7 +113,7 @@ interactively tested in this execution environment. There is no modified-game
 boot/gameplay/save-reload/dynasty test, expansion patch, new-team texture,
 complete scheduling-archive map or proven save checksum procedure.
 
-## Immediate next work
+## Stadium / 3D research added\n\nThe vanilla stadium folder has now been inventoried and documented separately.\nConfirmed findings include 23 authentic stadium BIGs, ten preserved generic BIGs,\nmodular ORD/ORL + SSH + DAT/IFO/CSV resources, and a controlled comparison of\nVENUDAY/VENUDUSK/VENUNITE showing 55 identical and 43 variant-dependent members.\nDirect MVP 05 ord2o/OEdit compatibility remains untested and must not be treated\nas confirmed. See [stadium_3d_assets.md](stadium_3d_assets.md).\n\n## Immediate next work
 
 Begin with an unmodified PCSX2 baseline and edited-stock load/save tests.
 Realigning one existing team is the smallest expansion-related experiment.
