@@ -301,3 +301,90 @@ Immediately after this selector, bits 12..20 hold another copy of the same 9-bit
 team asset ID described below. Therefore the team asset ID actually appears
 **four times** in the packed metadata block: at metadata bit offsets 140, 161,
 170, and 179.
+
+
+## 2026-10-01 lineup-role DWORD solved further
+
+The three roster-management screens correspond directly to stored roster data:
+
+1. **Pitching Rotation** — three explicit roster-slot indexes stored per team.
+2. **Batting Order** — encoded inside each roster slot's role DWORD.
+3. **Defensive Alignment** — encoded inside the same role DWORD.
+
+### Exact role-DWORD decomposition
+
+For each 8-byte roster slot, the second u32 can now be decomposed as:
+
+```
+bits  0..3   defensive-alignment channel A (0=unused, 1..10 position code)
+bits  4..7   defensive-alignment channel B (0=unused, 1..10 position code)
+bits  8..14  batting-order pair as a decimal two-digit integer
+bit      15  separate pitching/role flag
+bits 16..17  additional pitching/role flags
+bits 18..31  zero in stock data observed so far
+```
+
+The batting-order field is especially unusual but deterministic. The 7-bit value
+is interpreted as a normal decimal integer whose tens and ones digits are the
+two lineup channels:
+
+- 11 => order 1 in both channels
+- 22 => order 2 in both channels
+- 44 => order 4 in both channels
+- 60 => order 6 in channel A and unused in B
+- 06 => unused in A and order 6 in B
+- 99 => order 9 in both channels
+
+This explains stock values that previously looked like arbitrary hexadecimal
+patterns. For example:
+
+- `0x00002C33`: high role byte `0x2C = 44 decimal`, so batting order 4/4;
+  low nibbles `3/3`, so the same defensive position in both channels.
+- `0x00004D44`: `0x4D = 77 decimal`, so batting order 7/7; defense 4/4.
+- `0x00003C0A`: masked batting value is 60 decimal, so order 6/0; defensive
+  nibbles are 10/0, matching a DH-only assignment in one lineup channel.
+
+All stock defensive nibbles are in the range 0..10 and all masked batting values
+are in the range 0..99. This holds across all 3,800 stock roster slots.
+
+The two channels are definitely distinct lineup/alignment channels, but the UI
+labels for the two channels (for example vs LHP/vs RHP, DH/non-DH, or another
+game-specific distinction) are not yet proven from static data alone.
+
+### Pitching-role upper bits
+
+After removing bits 0..14, stock role values fall into five buckets:
+
+- `0x00000`: ordinary position-player / bench role
+- `0x08000`: **starting pitcher** — exactly all 456 primary-position-0 players
+- `0x10000`: relief bucket A
+- `0x18000`: relief bucket B
+- `0x28000`: **closer** — one per team for 147 teams and two for five teams;
+  these pitchers also have materially stronger average pitch-control ratings
+
+The exact in-game labels for relief buckets A and B remain unproven. Static
+evidence suggests `0x10000` is the higher-stamina/long-relief group and
+`0x18000` is the ordinary/middle-relief group.
+
+### Team metadata structure narrowed further
+
+Only bytes `0x090..0x0AF` of the 48-byte metadata region are non-zero in stock
+records. Bytes `0x0B0..0x0BF` are zero for all 152 teams.
+
+Additional observations:
+
+- `0x0A8..0x0AB` is a single 9-bit ID (52 unique values).
+- `0x0AC..0x0AF` is exactly two packed 9-bit IDs:
+  - bits 0..8: 17 unique values
+  - bits 9..17: 21 unique values
+  - bits 18..31: zero
+
+This three-ID pattern is consistent with presentation/audio/color references.
+It is not yet safe to assign final field names. The pair of 9-bit values at
+`0x0AC` is a strong candidate for two presentation/color palette references,
+while the 9-bit value at `0x0A8` is a strong candidate for a shared presentation
+or audio-bank reference.
+
+The u32 at `0x090` is much more team-specific (141 unique values for 152 teams)
+and is the strongest current candidate for a team-specific announcer/stadium
+presentation call ID or hash. This remains a hypothesis, not a confirmed label.
