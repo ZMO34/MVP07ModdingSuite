@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
 
 from .model import RosterDatabase
+from .memory_save import MemoryRosterSave
 
 
 POSITION_NAMES = {
@@ -47,6 +48,7 @@ class Editor(ttk.Frame):
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 8))
         ttk.Button(toolbar, text="Open DATABASE.BIG", command=self.open_file).pack(side="left")
+        ttk.Button(toolbar, text="Import Names from Roster Save…", command=self.import_save_names).pack(side="left", padx=6)
         ttk.Button(toolbar, text="Save As…", command=self.save_as).pack(side="left", padx=6)
         self.status = ttk.Label(toolbar, text="No database loaded")
         self.status.pack(side="left", padx=12)
@@ -194,6 +196,38 @@ class Editor(ttk.Frame):
             self.status.config(text=f"Applied edits to {t.name}")
         except Exception as exc:
             messagebox.showerror("Team edit failed", str(exc))
+
+
+    def import_save_names(self):
+        if not self.db:
+            messagebox.showinfo("Open database first", "Open DATABASE.BIG before importing names.")
+            return
+        name = filedialog.askopenfilename(
+            title="Import generated names from MVP 07 roster save",
+            filetypes=[("Roster saves / PCSX2 ZIP", "*.sav *.zip"), ("All files", "*.*")],
+        )
+        if not name:
+            return
+        try:
+            save = MemoryRosterSave.load(Path(name))
+            table = self.db.tables["attrib.dat"]
+            first_id = next(i for i, field in table.fields.items() if field == "first_name")
+            last_id = next(i for i, field in table.fields.items() if field == "last_name")
+            imported = 0
+            # Save player-record indexes line up with attrib.dat row indexes.
+            # Record 0 is the Default template; rows 1..3800 are stock players.
+            for index in range(1, min(len(table.rows), 3801)):
+                generated = save.player_name(index)
+                if not (generated.first_name or generated.last_name):
+                    continue
+                _, values = table.rows[index]
+                values[first_id] = generated.first_name
+                values[last_id] = generated.last_name
+                imported += 1
+            self.load_team(self.selected_team)
+            self.status.config(text=f"Imported generated names for {imported} players")
+        except Exception as exc:
+            messagebox.showerror("Name import failed", str(exc))
 
     def save_as(self):
         if not self.db: return
