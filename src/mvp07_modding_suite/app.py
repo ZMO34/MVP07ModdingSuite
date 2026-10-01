@@ -32,14 +32,44 @@ BASIC_FIELDS = [
     "playerattrib_height",
     "playerattrib_weight",
     "playerattrib_year",
+    "playerattrib_homelocation",
     "playerattrib_speed",
     "playerattrib_fielding",
     "playerattrib_range",
     "playerattrib_throwstrength",
     "playerattrib_throwaccuracy",
-    "playerattrib_bunting",
+    "playerattrib_platediscipline",
     "playerattrib_baserunning",
     "playerattrib_durability",
+    "playerattrib_battingstance",
+    "playerattrib_swingtype",
+    "playerattrib_ditty",
+    "playerattrib_starpower",
+    "playerattrib_scholarshiptenths",
+    "playerattrib_attitude",
+    "playerattrib_academic",
+]
+
+APPEARANCE_FIELDS = [
+    "playerattrib_facemorphindex",
+    "playerattrib_boneprofile",
+    "playerattrib_skintone",
+    "playerattrib_eyecolour",
+    "playerattrib_haircolour",
+    "playerattrib_sideburns",
+    "playerattrib_facialhair",
+    "playerattrib_captype",
+    "playerattrib_capposition",
+    "playerattrib_eyeprotection",
+    "derived_eyeblack",
+    "derived_sunglasses_style",
+    "playerattrib_battinghelmet",
+    "playerattrib_elbowguard",
+    "playerattrib_wristbandleftarm",
+    "playerattrib_wristbandrightarm",
+    "playerattrib_shinguard",
+    "playerattrib_socks",
+    "playerattrib_catchermask",
 ]
 BAT_FIELDS = [
     "lrattrib_contact", "lrattrib_power",
@@ -106,10 +136,10 @@ class Editor(ttk.Frame):
             ("slot", "#", 38),
             ("player", "Player", 190),
             ("pos", "Pos", 95),
-            ("bat_a", "Bat A", 48),
-            ("bat_b", "Bat B", 48),
-            ("def_a", "Def A", 48),
-            ("def_b", "Def B", 48),
+            ("bat_a", "Bat vR", 52),
+            ("bat_b", "Bat vL", 52),
+            ("def_a", "Def vR", 52),
+            ("def_b", "Def vL", 52),
             ("pitch", "Pitch role", 70),
             ("role", "Role flags", 95),
         ]:
@@ -146,6 +176,7 @@ class Editor(ttk.Frame):
         self.r_tab = ttk.Frame(self.tabs, padding=8)
         self.l_tab = ttk.Frame(self.tabs, padding=8)
         self.pitch_tab = ttk.Frame(self.tabs, padding=8)
+        self.appearance_tab = ttk.Frame(self.tabs, padding=8)
         self.save_tab = ttk.Frame(self.tabs, padding=8)
         self.team_tab = ttk.Frame(self.tabs, padding=8)
 
@@ -153,6 +184,7 @@ class Editor(ttk.Frame):
         self.tabs.add(self.r_tab, text="vs RHP")
         self.tabs.add(self.l_tab, text="vs LHP")
         self.tabs.add(self.pitch_tab, text="Pitching")
+        self.tabs.add(self.appearance_tab, text="Appearance")
         self.tabs.add(self.save_tab, text="Save Packed")
         self.tabs.add(self.team_tab, text="Team")
 
@@ -160,6 +192,7 @@ class Editor(ttk.Frame):
         self._make_form(self.r_tab, "rhattrib.dat", BAT_FIELDS)
         self._make_form(self.l_tab, "lhattrib.dat", BAT_FIELDS)
         self._make_form(self.pitch_tab, "pitcher.dat", PITCH_FIELDS)
+        self._make_form(self.appearance_tab, "attrib.dat", APPEARANCE_FIELDS)
 
         self.save_first = tk.StringVar()
         self.save_last = tk.StringVar()
@@ -392,7 +425,7 @@ class Editor(ttk.Frame):
                 changes.setdefault(table, {})[field] = var.get()
         elif self.doc.source_kind == ".sav":
             for (table, field), var in self.field_vars.items():
-                if table in {"lhattrib.dat", "rhattrib.dat"}:
+                if table in {"attrib.dat", "lhattrib.dat", "rhattrib.dat", "pitcher.dat"}:
                     changes.setdefault(table, {})[field] = var.get()
 
         if self.doc.source_kind == ".sav":
