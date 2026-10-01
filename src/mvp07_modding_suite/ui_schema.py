@@ -168,6 +168,10 @@ def validate_field_value(name: str, value: str, original_raw: str = "") -> str:
         return raw
     if spec.minimum is None and spec.maximum is None:
         return raw
+    if spec.choices and any(
+        raw.upper() == label.upper() for label, _stored in spec.choices
+    ):
+        return raw
     if not _looks_int(raw):
         raise ValueError(f"{spec.label} must be a number or a listed choice")
     number = int(raw, 0)
