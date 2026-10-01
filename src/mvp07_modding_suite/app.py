@@ -140,7 +140,7 @@ class Editor(ttk.Frame):
         team = self.db.teams[idx]
         self.team_title.config(text=f"{team.name} — 25-player roster")
         for k in self.team_vars: self.team_vars[k].set(str(getattr(team,k)))
-        self.team_meta.config(text=f"Asset ID: {team.asset_id}   Unknown 3-bit value: {team.metadata_top3}   Special bit: {team.metadata_bit0}   Starters: {team.starter_indexes}")
+        self.team_meta.config(text=f"Location ID: {team.location_id}   Conference ID: {team.conference_id}   Division: {team.division_index}   Asset ID: {team.asset_id}   Unknown 3-bit value: {team.metadata_top3}   Special bit: {team.metadata_bit0}   Starters: {team.starter_indexes}")
         for item in self.roster.get_children(): self.roster.delete(item)
         amap = self.db.tables["attrib.dat"].by_numeric_key()
         inv = {v:k for k,v in self.db.tables["attrib.dat"].fields.items()}
