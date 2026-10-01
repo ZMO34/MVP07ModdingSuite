@@ -13,7 +13,7 @@ SLUS-21582)**. Updated **2026-10-01** after executable research.
 | Player editing | DAT fields and mapped save names, general/appearance, all 27 batting fields and mapped pitching fields writable; unknown bits preserved |
 | Lineups and rotation | Role packing and rotation indexes mapped; raw-role/rotation editing supported; hand-to-channel association still needs controlled verification |
 | Writers | Experimental: structural round trips checked; modified game files have not been boot/gameplay tested |
-| Executable research | Team serializer, runtime layout, roster/player/team/conference limits, ballpark tail and asset-loading paths mapped |
+| Executable research | Team serializer, runtime layout, roster/player/team/conference limits, ballpark tail and asset-loading paths mapped |\n| Stadium / 3D assets | BIG resource layout, 23 authentic + 10 generic packages, and VENU day/dusk/night member differences documented; ORD/ORL conversion not yet proven |
 | 34-player rosters, added teams/conferences/assets | Hypotheses documented; executable patches, expanded editor profiles and game validation not implemented |
 
 The executable has **30-slot runtime team storage**, a validation branch for
@@ -45,7 +45,7 @@ Start with [the agent handoff](docs/research/handoff.md), then the
 [full executable evidence and hypotheses](docs/research/executable.md).
 Supporting maps: [DATABASE.BIG / roster.bin](docs/research/database_big_roster.md),
 [memory-card save](docs/research/memory_card_roster.md), and
-[GUI capabilities and limitations](docs/gui_roster_editor.md).
+[GUI capabilities and limitations](docs/gui_roster_editor.md), and\n[stadium / 3D asset research](docs/research/stadium_3d_assets.md).
 
 ## Run the editor
 
