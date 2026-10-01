@@ -15,6 +15,39 @@ SAVE_LAST_NAME_SIZE = 16
 SAVE_PLAYER_PAYLOAD_OFFSET = 28
 SAVE_PLAYER_PAYLOAD_SIZE = 56
 
+# SLUS-21582 MVP 07 roster-save batting tables.
+# These are fixed-size runtime arrays indexed by save player index.
+SAVE_LH_BATTING_BASE = 0x7F003
+SAVE_RH_BATTING_BASE = 0x8EC37
+SAVE_BATTING_RECORD_SIZE = 16
+
+BATTING_BITFIELDS = {
+    "lrattrib_contact": (32, 7),
+    "lrattrib_power": (39, 7),
+    "lrattrib_hit_ul": (46, 2),
+    "lrattrib_hit_cl": (48, 2),
+    "lrattrib_hit_ll": (50, 2),
+    "lrattrib_hit_um": (52, 2),
+    "lrattrib_hit_cm": (54, 2),
+    "lrattrib_hit_lm": (56, 2),
+    "lrattrib_hit_ur": (58, 2),
+    "lrattrib_hit_cr": (60, 2),
+    "lrattrib_hit_lr": (62, 2),
+    "lrattrib_chasefb": (64, 4),
+    "lrattrib_chaseslowbreak": (68, 4),
+    "lrattrib_chasehardbreak": (72, 4),
+    "lrattrib_takefb": (76, 4),
+    "lrattrib_takeslowbreak": (80, 4),
+    "lrattrib_takehardbreak": (84, 4),
+    "lrattrib_missfb": (88, 4),
+    "lrattrib_missslowbreak": (92, 4),
+    "lrattrib_misshardbreak": (96, 4),
+    "lrattrib_lf_pct": (100, 6),
+    "lrattrib_cf_pct": (107, 5),
+    "lrattrib_rf_pct": (114, 6),
+    "lrattrib_hr_pct": (121, 4),
+}
+
 
 @dataclass(frozen=True)
 class SavePlayerName:
@@ -72,6 +105,51 @@ class MemoryRosterSave:
             SAVE_PLAYER_PAYLOAD_OFFSET:
             SAVE_PLAYER_PAYLOAD_OFFSET + SAVE_PLAYER_PAYLOAD_SIZE
         ]
+
+    def batting_record(self, index: int, side: str) -> bytes:
+        if not 0 <= index < SAVE_PLAYER_RECORDS:
+            raise IndexError(index)
+        side_key = side.lower()
+        if side_key in {"l", "lh", "vs_lhp"}:
+            base = SAVE_LH_BATTING_BASE
+        elif side_key in {"r", "rh", "vs_rhp"}:
+            base = SAVE_RH_BATTING_BASE
+        else:
+            raise ValueError("side must be L/LH/vs_lhp or R/RH/vs_rhp")
+        start = base + index * SAVE_BATTING_RECORD_SIZE
+        return bytes(self.raw[start:start + SAVE_BATTING_RECORD_SIZE])
+
+    def batting_values(self, index: int, side: str) -> dict[str, int]:
+        value = int.from_bytes(self.batting_record(index, side), "little")
+        result = {}
+        for field, (bit, width) in BATTING_BITFIELDS.items():
+            result[field] = (value >> bit) & ((1 << width) - 1)
+        return result
+
+    def set_batting_values(self, index: int, side: str, changes: dict[str, int]) -> None:
+        if not 0 <= index < SAVE_PLAYER_RECORDS:
+            raise IndexError(index)
+        side_key = side.lower()
+        if side_key in {"l", "lh", "vs_lhp"}:
+            base = SAVE_LH_BATTING_BASE
+        elif side_key in {"r", "rh", "vs_rhp"}:
+            base = SAVE_RH_BATTING_BASE
+        else:
+            raise ValueError("side must be L/LH/vs_lhp or R/RH/vs_rhp")
+        start = base + index * SAVE_BATTING_RECORD_SIZE
+        value = int.from_bytes(self.raw[start:start + SAVE_BATTING_RECORD_SIZE], "little")
+        for field, raw_value in changes.items():
+            if field not in BATTING_BITFIELDS:
+                continue
+            bit, width = BATTING_BITFIELDS[field]
+            field_value = int(raw_value)
+            if not 0 <= field_value < (1 << width):
+                raise ValueError(f"{field} must fit in {width} bits")
+            mask = ((1 << width) - 1) << bit
+            value = (value & ~mask) | (field_value << bit)
+        self.raw[start:start + SAVE_BATTING_RECORD_SIZE] = value.to_bytes(
+            SAVE_BATTING_RECORD_SIZE, "little"
+        )
 
     def player_name(self, index: int) -> SavePlayerName:
         rec = self.player_record(index)
