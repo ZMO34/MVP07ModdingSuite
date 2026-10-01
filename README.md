@@ -32,3 +32,24 @@ See `docs/research/database_big_roster.md` for the current binary map.
 - Writers must preserve unknown data until its meaning is established.
 - Keep research concise enough that ChatGPT/Codex can quickly recover project
   state from the repository.
+
+
+## Unified roster editor
+
+Run:
+
+```bash
+python run_editor.py
+```
+
+The editor now opens three roster-source types through one GUI:
+
+- `DATABASE.BIG`: full stock roster + DAT-backed player attributes
+- raw/compressed `roster.bin`: team/roster/lineup/rotation structure
+- PS2 `.sav` or PCSX2 roster-save `.zip`: 30-slot runtime rosters, generated
+  player names, role flags, rotations, and team metadata
+
+The `.sav` writer preserves all currently unknown packed player-attribute bits
+byte-for-byte. Names, team strings, roster role flags, and starting-rotation
+indexes are writable. General save-player attributes remain read-only as packed
+hex until their individual encoding is proven.
