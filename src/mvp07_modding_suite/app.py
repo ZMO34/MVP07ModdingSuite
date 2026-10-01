@@ -82,17 +82,31 @@ BAT_FIELDS = [
     "lrattrib_missfb", "lrattrib_missslowbreak", "lrattrib_misshardbreak",
 ]
 PITCH_FIELDS = [
+    "pitchattrib_pitcher_delivery",
     "pitchattrib_stamina",
     "pitchattrib_pickoff",
     "pitchattrib_fastball_control",
     "pitchattrib_fastball_velocity",
     "pitchattrib_pitch2_type",
+    "pitchattrib_pitch2_movement",
+    "pitchattrib_pitch2_description",
     "pitchattrib_pitch2_control",
     "pitchattrib_pitch2_velocity",
     "pitchattrib_pitch3_type",
+    "pitchattrib_pitch3_movement",
+    "pitchattrib_pitch3_description",
     "pitchattrib_pitch3_control",
     "pitchattrib_pitch3_velocity",
-    "pitchattrib_pitcher_delivery",
+    "pitchattrib_pitch4_type",
+    "pitchattrib_pitch4_movement",
+    "pitchattrib_pitch4_description",
+    "pitchattrib_pitch4_control",
+    "pitchattrib_pitch4_velocity",
+    "pitchattrib_pitch5_type",
+    "pitchattrib_pitch5_movement",
+    "pitchattrib_pitch5_description",
+    "pitchattrib_pitch5_control",
+    "pitchattrib_pitch5_velocity",
 ]
 
 
