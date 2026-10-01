@@ -72,7 +72,8 @@ EXPERIMENTAL_BODYTYPE_BITS = (229, 3)
 # SLUS-21582 packed pitcher table: 1609 stock pitcher.dat rows, 20 bytes each.
 SAVE_PITCHER_BASE = 0xF22E3
 SAVE_PITCHER_RECORD_SIZE = 20
-SAVE_PITCHER_RECORDS = 1609
+SAVE_PITCHER_STOCK_RECORDS = 1609
+SAVE_PITCHER_RECORDS = 1634  # 1609 stock pitcher.dat rows + 25 CAP reserve rows
 
 PITCHER_BITFIELDS = {
     "pitchattrib_stamina": (0, 7),
@@ -428,10 +429,10 @@ class MemoryRosterSave:
         """Find the save's explicit player-ID -> pitcher.dat-row mapping.
 
         The lookup region immediately before the packed pitcher array contains
-        triples [u32 player_id][u32 pitcher_index][u32 same_index]. Scanning
-        this bounded region yields exactly one entry for every stock pitcher
-        index 1..1608. Index 0 (Default) also appears, along with a few
-        byte-shift false positives, so prefer the high-valued ID candidate.
+        triples [u32 player_id][u32 pitcher_index][u32 same_index]. Stock rows
+        use indexes 0..1608 and the 25 reserved Create-a-Player IDs use
+        1609..1633. Index 0 (Default) can also produce byte-shift false
+        positives, so prefer the high-valued ID candidate.
         """
         mapping: dict[int, int] = {}
         start = max(0, SAVE_PITCHER_BASE - 0x6000)
