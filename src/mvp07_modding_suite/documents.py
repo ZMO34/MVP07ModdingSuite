@@ -258,14 +258,14 @@ class MemorySaveDocument(RosterDocument):
         if index is None:
             return {}
         name = self.save_file.player_name(index)
-        left = {
-            key: str(value)
-            for key, value in self.save_file.batting_values(index, "L").items()
-        }
-        right = {
-            key: str(value)
-            for key, value in self.save_file.batting_values(index, "R").items()
-        }
+        general = {k: str(v) for k, v in self.save_file.player_general_values(index).items()}
+        left = {k: str(v) for k, v in self.save_file.batting_values(index, "L").items()}
+        right = {k: str(v) for k, v in self.save_file.batting_values(index, "R").items()}
+        pitcher = {}
+        pindex = self.save_file.player_id_to_pitcher_index.get(player_id)
+        if pindex is not None:
+            pitcher = {k: str(v) for k, v in self.save_file.pitcher_values(pindex).items()}
+            pitcher["pitcher_index"] = str(pindex)
         return {
             "save": {
                 "first_name": name.first_name,
@@ -273,8 +273,10 @@ class MemorySaveDocument(RosterDocument):
                 "player_index": str(index),
                 "packed_attributes_hex": self.save_file.player_payload(index).hex(),
             },
+            "attrib.dat": general,
             "lhattrib.dat": left,
             "rhattrib.dat": right,
+            "pitcher.dat": pitcher,
         }
 
     def set_player_fields(self, player_id: int, changes: dict[str, dict[str, str]]) -> None:
