@@ -196,6 +196,16 @@ class RosterSlot:
         return (self.role_flags >> 4) & 0x0F
 
     @property
+    def defense_vs_rhp(self) -> int:
+        """Default defensive alignment used versus right-handed pitchers."""
+        return self.defense_a
+
+    @property
+    def defense_vs_lhp(self) -> int:
+        """Secondary defensive alignment used versus left-handed pitchers."""
+        return self.defense_b
+
+    @property
     def batting_pair_code(self) -> int:
         """Two decimal batting-order digits packed into bits 8..14."""
         return (self.role_flags >> 8) & 0x7F
@@ -207,6 +217,16 @@ class RosterSlot:
     @property
     def batting_order_b(self) -> int:
         return self.batting_pair_code % 10
+
+    @property
+    def batting_order_vs_rhp(self) -> int:
+        """Default batting order used versus right-handed pitchers."""
+        return self.batting_order_a
+
+    @property
+    def batting_order_vs_lhp(self) -> int:
+        """Secondary batting order used versus left-handed pitchers."""
+        return self.batting_order_b
 
     @property
     def extra_role_flags(self) -> int:
