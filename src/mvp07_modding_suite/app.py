@@ -41,7 +41,16 @@ BASIC_FIELDS = [
     "playerattrib_baserunning",
     "playerattrib_durability",
 ]
-BAT_FIELDS = ["lrattrib_contact", "lrattrib_power"]
+BAT_FIELDS = [
+    "lrattrib_contact", "lrattrib_power",
+    "lrattrib_hit_ul", "lrattrib_hit_um", "lrattrib_hit_ur",
+    "lrattrib_hit_cl", "lrattrib_hit_cm", "lrattrib_hit_cr",
+    "lrattrib_hit_ll", "lrattrib_hit_lm", "lrattrib_hit_lr",
+    "lrattrib_lf_pct", "lrattrib_cf_pct", "lrattrib_rf_pct", "lrattrib_hr_pct",
+    "lrattrib_chasefb", "lrattrib_chaseslowbreak", "lrattrib_chasehardbreak",
+    "lrattrib_takefb", "lrattrib_takeslowbreak", "lrattrib_takehardbreak",
+    "lrattrib_missfb", "lrattrib_missslowbreak", "lrattrib_misshardbreak",
+]
 PITCH_FIELDS = [
     "pitchattrib_stamina",
     "pitchattrib_pickoff",
@@ -91,13 +100,17 @@ class Editor(ttk.Frame):
         body.add(mid, weight=2)
         self.team_title = ttk.Label(mid, text="Roster", font=("", 12, "bold"))
         self.team_title.pack(anchor="w")
-        columns = ("slot", "player", "pos", "bat", "role")
+        columns = ("slot", "player", "pos", "bat_a", "bat_b", "def_a", "def_b", "pitch", "role")
         self.roster = ttk.Treeview(mid, columns=columns, show="headings", height=24)
         for col, label, width in [
             ("slot", "#", 38),
-            ("player", "Player", 210),
-            ("pos", "Pos", 120),
-            ("bat", "Bat", 42),
+            ("player", "Player", 190),
+            ("pos", "Pos", 95),
+            ("bat_a", "Bat A", 48),
+            ("bat_b", "Bat B", 48),
+            ("def_a", "Def A", 48),
+            ("def_b", "Def B", 48),
+            ("pitch", "Pitch role", 70),
             ("role", "Role flags", 95),
         ]:
             self.roster.heading(col, text=label)
@@ -289,7 +302,11 @@ class Editor(ttk.Frame):
                 except Exception:
                     pos = posraw
 
-            bat = str(slot.inferred_batting_order or "")
+            bat_a = str(slot.batting_order_a or "")
+            bat_b = str(slot.batting_order_b or "")
+            def_a = str(slot.defense_a or "")
+            def_b = str(slot.defense_b or "")
+            pitch = slot.pitching_role or ""
             self.roster.insert(
                 "",
                 "end",
@@ -298,7 +315,11 @@ class Editor(ttk.Frame):
                     i + 1,
                     player_name,
                     pos,
-                    bat,
+                    bat_a,
+                    bat_b,
+                    def_a,
+                    def_b,
+                    pitch,
                     f"0x{slot.role_flags:08X}",
                 ),
             )
@@ -369,6 +390,10 @@ class Editor(ttk.Frame):
         if self.doc.supports_dat_attributes:
             for (table, field), var in self.field_vars.items():
                 changes.setdefault(table, {})[field] = var.get()
+        elif self.doc.source_kind == ".sav":
+            for (table, field), var in self.field_vars.items():
+                if table in {"lhattrib.dat", "rhattrib.dat"}:
+                    changes.setdefault(table, {})[field] = var.get()
 
         if self.doc.source_kind == ".sav":
             changes["save"] = {
