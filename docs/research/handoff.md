@@ -184,6 +184,20 @@ The supplied disc/save stock checks and 122 preservation checks were rerun;
 62 executable fingerprints replace the historical 35-check total. Audio
 playback, modified-file gameplay, GUI interaction and expansion remain untested.
 
+## CSV naming correction (2026-10-01)
+
+New exports use editable universal `first_name` and `last_name` columns for
+both DATABASE.BIG and memory-card sources. `player_name` remains display-only.
+Old source-prefixed name columns are rejected at the user's request; no legacy
+name compatibility is retained. Names route to the active backend's name
+storage; raw roster.bin alone cannot store player names. See
+[CSV format](../csv_roster_format.md) for blank/missing-cell behavior.
+Regression tests cover both sources, no-op imports, clearing a name part,
+partial name edits, rejected old/mixed schemas and the player-ID guard.
+Full CSV export/import and rename/save/reopen were verified against the supplied
+DATABASE.BIG and PCSX2 ZIP; the latter also passed raw .sav reopening. Unrelated
+fields/members and original files remain preserved. Game/GUI testing is pending.
+
 ## Immediate next work
 
 1. User tests ordinary edited stock files through boot/load/gameplay/save/reload.

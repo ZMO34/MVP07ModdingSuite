@@ -17,6 +17,7 @@ TABLE_TO_PREFIX = {
 PREFIX_TO_TABLE = {prefix: table for table, prefix in TABLE_TO_PREFIX.items()}
 TABLE_ORDER = tuple(TABLE_TO_PREFIX)
 TEAM_FIELDS = ("key", "name", "abbreviation", "city", "nickname")
+NAME_FIELDS = ("first_name", "last_name")
 BASE_COLUMNS = (
     "team_index",
     "team_key",
@@ -29,6 +30,8 @@ BASE_COLUMNS = (
     "starter_3_slot",
     "roster_slot",
     "player_id",
+    "first_name",
+    "last_name",
     "player_name",
     "role_flags",
 )
@@ -74,7 +77,11 @@ def export_roster_csv(doc, path: Path) -> int:
                     "role_flags": f"0x{slot.role_flags:08X}",
                 }
                 if slot.player_id:
-                    for table, values in doc.player_fields(slot.player_id).items():
+                    current = doc.player_fields(slot.player_id)
+                    for field in NAME_FIELDS:
+                        table = _name_table(current, field)
+                        row[field] = current[table][field] if table else ""
+                    for table, values in current.items():
                         prefix = TABLE_TO_PREFIX.get(table)
                         if prefix is None:
                             continue
@@ -97,6 +104,13 @@ def import_roster_csv(doc, path: Path) -> CsvImportResult:
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
             raise ValueError("CSV has no header")
+        legacy_names = {f"{prefix}.{name}" for prefix in ("save", "attrib")
+                        for name in NAME_FIELDS} & set(reader.fieldnames)
+        if legacy_names:
+            raise ValueError(
+                f"Unsupported name columns: {', '.join(sorted(legacy_names))}. "
+                "Export a new CSV and edit first_name and last_name."
+            )
         missing = {"team_index", "roster_slot", "player_id"} - set(reader.fieldnames)
         if missing:
             raise ValueError(f"CSV is missing required columns: {', '.join(sorted(missing))}")
@@ -142,6 +156,23 @@ def import_roster_csv(doc, path: Path) -> CsvImportResult:
             continue
         current = doc.player_fields(slot.player_id)
         changes: dict[str, dict[str, str]] = {}
+        for field in NAME_FIELDS:
+            if field not in row or row[field] is None:
+                continue
+            value = row[field].strip()
+            table = _name_table(current, field)
+            if table is None:
+                if value:
+                    raise ValueError(
+                        f"Line {line_no}: {field} is not editable for this player/source. "
+                        "Open DATABASE.BIG or a memory-card roster to edit names."
+                    )
+                continue
+            old = str(current[table][field])
+            if table != "save":
+                value = validate_field_value(field, value, old)
+            if value != old:
+                changes.setdefault(table, {})[field] = value
         for column, csv_value in row.items():
             if "." not in column or csv_value is None:
                 continue
@@ -201,14 +232,20 @@ def _discover_player_columns(doc) -> list[str]:
                 if table not in fields:
                     continue
                 if table == "save":
-                    fields[table].update(name for name in values if name in {"first_name", "last_name"})
+                    continue  # Names use universal columns; other save fields are diagnostics.
                 else:
-                    fields[table].update(values)
+                    fields[table].update(name for name in values if name not in NAME_FIELDS)
     columns: list[str] = []
     for table in TABLE_ORDER:
         prefix = TABLE_TO_PREFIX[table]
         columns.extend(f"{prefix}.{field}" for field in sorted(fields[table]))
     return columns
+
+
+def _name_table(current: dict[str, dict[str, str]], field: str) -> str | None:
+    """Prefer generated save names; database names live in attrib.dat."""
+    return next((table for table in ("save", "attrib.dat")
+                 if field in current.get(table, {})), None)
 
 
 def _merge_team_row(plan: dict[int, dict[str, str]], team_index: int, row: dict[str, str], line_no: int) -> None:

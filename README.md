@@ -11,7 +11,7 @@ alongside roster editing. Updated **2026-10-01**.
 | BIGF extraction and RefPack decoding | Implemented; supplied database decoded and cross-file joins verified |
 | Unified roster editor | Opens `DATABASE.BIG`, stock `roster.bin`, `.sav`, and PCSX2 save ZIPs |
 | Editor usability | Redesigned three-pane UI with search/filter, scrollable forms, validation, enum drop-downs/autocomplete, dirty-state tracking and Undo/Redo |
-| CSV | Full-roster CSV export/import for supported team, role, rotation and mapped player fields; player IDs are guarded against accidental reassignment |
+| CSV | Full-roster CSV export/import with universal editable `first_name` / `last_name` columns; old name columns rejected; player IDs guarded against accidental reassignment |
 | Starting rotation | Dedicated three-starter UI using player-name selectors; no raw comma-separated index entry required |
 | Stock team/roster layout | Confirmed: 152 playable teams plus sentinel; 25-slot disc / 30-slot save records |
 | Player editing | DAT fields and mapped save names, general/appearance, all 27 batting fields and mapped pitching fields writable; unknown bits preserved |

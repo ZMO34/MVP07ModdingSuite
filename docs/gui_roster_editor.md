@@ -67,6 +67,10 @@ specific restrictions are checked again when changes are applied.
 The toolbar can export all teams/roster slots and exposed player fields to CSV
 and import edited values back into the loaded roster.
 
+Player renaming uses universal `first_name` and `last_name` columns for both
+database and memory-card sources. Old source-prefixed name columns are rejected;
+re-export CSVs from the updated editor. The combined `player_name` column is display-only.
+
 CSV player IDs are structural guards, not movement instructions. Import refuses
 rows whose player ID no longer matches the specified team/slot, so a spreadsheet
 cannot silently reassign players. Team/rotation values repeated across rows must
