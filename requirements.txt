@@ -1,0 +1,3 @@
+# beta1 runtime dependencies
+# No third-party Python packages are required.
+# Requires Python 3.10+ and Tkinter (bundled with standard Windows/macOS Python).
