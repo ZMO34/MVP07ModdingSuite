@@ -200,3 +200,74 @@ area. It must be preserved byte-for-byte until understood.
 4. Determine the 491-byte global header.
 5. Add RefPack compression and BIGF rebuild support after the read path is fully
    validated.
+
+
+## 2026-10-01 additional static findings
+
+### Team metadata: repeated 9-bit asset ID
+
+**CONFIRMED:** team-relative bytes `0x0A4..0x0A7` are a packed little-endian
+u32 containing three repeated copies of the same 9-bit team asset ID:
+
+- bits 1..9: asset ID copy 1
+- bits 10..18: asset ID copy 2
+- bits 19..27: asset ID copy 3
+- bit 0: separate flag (set only for BYU in the stock database)
+- bits 28..30: separate 3-bit value in the range 1..7
+- bit 31: zero in all stock records
+
+The three 9-bit copies agree for every team.
+
+Asset-ID sequence:
+- roster records 1..49 encode IDs 1..49
+- roster record 50 encodes ID 51
+- subsequent records continue through ID 153
+
+Therefore asset ID 50 is deliberately reserved/skipped. The meanings of bit 0
+and bits 28..30 remain unknown and must not yet be labeled in the GUI.
+
+### Roster-slot role flags: common starting-lineup patterns
+
+**PARTIALLY MAPPED:** for ordinary starting position players, the low byte often
+contains two identical nibbles equal to `primary_position + 1`:
+
+- position 1 -> `0x22`
+- position 2 -> `0x33`
+- ...
+- position 9 -> `0xAA`
+
+The next byte commonly takes one of nine values:
+
+`0x0B, 0x16, 0x21, 0x2C, 0x37, 0x42, 0x4D, 0x58, 0x63`
+
+These map empirically to batting-order slots 1..9 respectively. Examples include
+`0x0B88`, `0x2C33`, `0x5866`, and `0x6322`.
+
+Not every starter uses the simple form; several teams contain alternate values
+such as `0x1403`, `0x230`, `0x4603`, etc. This strongly suggests the u32
+contains multiple lineup/role assignments (likely split/platoon configurations)
+rather than one simple position+order pair. The GUI may display the simple
+inference but must preserve the complete raw u32.
+
+### Global prefix
+
+The 491-byte prefix is almost entirely zero. Only the first four bytes are
+non-zero: little-endian u32 `153`. This matches the maximum encoded team asset
+ID (153) and is consistent with an ID-space/count sentinel, but the exact
+semantics are still not proven.
+
+### First GUI/editor implementation
+
+A first GUI implementation now lives under `src/mvp07_modding_suite/`.
+
+It can:
+- open the original `DATABASE.BIG`
+- browse 152 teams and 25-player rosters
+- join player IDs to the four attribute tables
+- edit confirmed team strings and selected player attributes
+- show raw role flags plus safe batting-order inference
+- rebuild the BIG archive and verify that the rebuilt file can be parsed again
+
+The current writer uses literal-only valid RefPack streams. This is structurally
+verified but still requires an ISO/game runtime test before being considered
+production-safe.
