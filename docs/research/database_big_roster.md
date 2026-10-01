@@ -271,3 +271,33 @@ It can:
 The current writer uses literal-only valid RefPack streams. This is structurally
 verified but still requires an ISO/game runtime test before being considered
 production-safe.
+
+
+### Team metadata: location, conference, and division
+
+**CONFIRMED:** the beginning of the packed metadata word at team-relative
+`0x0A0` contains three fields:
+
+- bits 0..5: `location.dat` ID (1..49 observed)
+- bits 6..10: `conf.dat` ID (1..16 observed)
+- bit 11: conference-division selector
+
+The 6-bit location values match known school states/locations and the IDs in
+`location.dat`.
+
+The 5-bit conference values match the 16 rows in `conf.dat`.
+
+Bit 11 is set exactly for teams assigned to the second named division in the
+three conferences whose `conf_divisionnum` is 2:
+
+- ACC: Atlantic (Boston College, Clemson, Florida State, Maryland, NC State,
+  Wake Forest)
+- SEC: West (Alabama, Arkansas, Auburn, LSU, Mississippi State, Ole Miss)
+- WCC: West (Pepperdine, Portland, San Francisco, Santa Clara)
+
+It is clear for the other teams.
+
+Immediately after this selector, bits 12..20 hold another copy of the same 9-bit
+team asset ID described below. Therefore the team asset ID actually appears
+**four times** in the packed metadata block: at metadata bit offsets 140, 161,
+170, and 179.
