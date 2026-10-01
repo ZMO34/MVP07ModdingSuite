@@ -292,6 +292,28 @@ class MemorySaveDocument(RosterDocument):
                 save_changes.get("last_name", old.last_name),
             )
 
+        if "attrib.dat" in changes:
+            current_general = self.save_file.player_general_values(index)
+            self.save_file.set_player_general_values(
+                index,
+                {
+                    key: int(value)
+                    for key, value in changes["attrib.dat"].items()
+                    if value != "" and key in current_general
+                },
+            )
+
+        pindex = self.save_file.player_id_to_pitcher_index.get(player_id)
+        if "pitcher.dat" in changes and pindex is not None:
+            self.save_file.set_pitcher_values(
+                pindex,
+                {
+                    key: int(value)
+                    for key, value in changes["pitcher.dat"].items()
+                    if value != "" and key != "pitcher_index"
+                },
+            )
+
         if "lhattrib.dat" in changes:
             self.save_file.set_batting_values(
                 index,
