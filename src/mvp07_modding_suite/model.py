@@ -248,9 +248,22 @@ class TeamRecord:
             ))
         return slots
 
+    def set_roster_slot(self, index: int, player_id: int, role_flags: int) -> None:
+        if not 0 <= index < 25:
+            raise IndexError(index)
+        off = 0x0C4 + index * 8
+        self.raw[off:off + 4] = int(player_id).to_bytes(4, "little")
+        self.raw[off + 4:off + 8] = int(role_flags).to_bytes(4, "little")
+
     @property
     def starter_indexes(self) -> list[int]:
         return list(self.raw[0x18C:0x18F])
+
+    @starter_indexes.setter
+    def starter_indexes(self, values: list[int]) -> None:
+        if len(values) != 3 or any(not 0 <= int(x) < 25 for x in values):
+            raise ValueError("Three starter indexes in the range 0..24 are required")
+        self.raw[0x18C:0x18F] = bytes(int(x) for x in values)
 
     @property
     def location_id(self) -> int:
