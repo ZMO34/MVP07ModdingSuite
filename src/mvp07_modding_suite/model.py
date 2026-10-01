@@ -253,6 +253,21 @@ class TeamRecord:
         return list(self.raw[0x18C:0x18F])
 
     @property
+    def location_id(self) -> int:
+        x = int.from_bytes(self.raw[0x0A0:0x0A4], "little")
+        return x & 0x3F
+
+    @property
+    def conference_id(self) -> int:
+        x = int.from_bytes(self.raw[0x0A0:0x0A4], "little")
+        return (x >> 6) & 0x1F
+
+    @property
+    def division_index(self) -> int:
+        x = int.from_bytes(self.raw[0x0A0:0x0A4], "little")
+        return (x >> 11) & 1
+
+    @property
     def asset_id(self) -> int:
         x = int.from_bytes(self.raw[0x0A4:0x0A8], "little")
         return (x >> 1) & 0x1FF
