@@ -1,0 +1,1 @@
+import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path(__file__).parent / "src"))\nfrom mvp07_modding_suite.app import main\nmain()\n
