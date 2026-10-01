@@ -52,7 +52,7 @@ python tools/inspect_elf.py /path/to/SLUS_215.82 calls 0x6f7bc0
 python tools/inspect_elf.py /path/to/SLUS_215.82 xrefs 0x93f608
 ```
 
-`verify` checks the exact executable SHA-256 and 35 instruction fingerprints.
+`verify` checks the exact executable SHA-256 and 62 instruction fingerprints.
 It verifies the evidence locations, not a patch or feasibility conclusion.
 Capstone is not a full R5900 decoder. The helper explicitly handles LQ/SQ and
 three-operand MULT/MULTU; unsupported MMI words remain raw. Address xrefs are
@@ -79,6 +79,37 @@ manual review. Do not use a global search-and-replace of integer constants.
 - Executable general-player pool/table capacity is **4035**, not a proven 4096
   player-index ceiling. No absolute 12-bit player-index limit was established.
 
+## Team audio and stadium follow-up (2026-10-01)
+
+This supersedes guesses based on metadata cardinality. Direct supplied-file joins
+and Create-a-Team CSV consumers confirm:
+
+| Field | Bits | Getter / setter | Evidence |
+|---|---|---|---|
+| `+0xA0` school audio | 12..20 | `0x6F7C60` / `0x6F7C70` | `schoolnameaudio.csv` → ID/string rows → CAT setter call `0x7899A0` |
+| `+0xA0` nickname audio | 21..29 | `0x6F7C98` / `0x6F7CA8` | 152/152 exact CSV joins; CAT setter call `0x789940` |
+| `+0xA8` stadium | 4..9 | `0x6F7C30` / `0x6F7C40` | shift 4 / mask 63; resource resolver `0x197D50` |
+
+The audio CSV loader `0x7884A0` reads decimal IDs into 68-byte ID/string rows.
+School and nickname dictionaries reside at CAT object `+0x907C` / `+0x560C`.
+A consumer at `0x1A91C4/0x1A91D0` calls both getters independently of the logo
+getter. Stock school calls equal stock art IDs but are separate fields; CAT
+school IDs 201..360 go through the same setter. The CSV does not provide the
+stock school-ID dictionary. Nickname extended IDs are already used by 18 stock
+teams. Serialized `+0x090` is not either selector.
+
+`+0xAC` accessors `0x6F7E28` and `0x6F7EB0` extract two indexed groups of
+four three-bit values, not two nine-bit references. Their presentation/color
+meaning still needs consumer or in-game evidence. `+0x090` is accessed as four
+indexed bytes (`0x6F7B78`, search `0x6F7B88`); its meaning is unresolved.
+
+See [the complete DBMisc/audio join](database_big_roster.md#dbmisc-and-announcer-selectors-direct-join-2026-10-01)
+for input hashes, field masks, stock-vs-CAT namespaces and reproduction. See
+[stadium resolution](stadium_3d_assets.md#confirmed-team-to-stadium-resolution-2026-10-01)
+for the resolver tables and stock assignments. None of this pass verifies audio
+bank contents, commentary playback, stadium reassignment or expanded team support.
+The exact-build inspector now includes 62 fingerprints (35 original +27 follow-up).
+
 ## Team serialization: confirmed
 
 `0x6F8C00` is the roster-file loading path: references `roster.bin` at string
@@ -96,8 +127,8 @@ The individual team serializer is `0x6B19D0`. Its call sequence gives this map:
 | `0x038` | `0x038` | 16 | abbreviation |
 | `0x048` | `0x048` | 40 | city |
 | `0x070` | `0x070` | 32 | nickname |
-| `0x09C` | `0x090` | 4 | metadata DWORD, semantics unresolved |
-| `0x090` | `0x094` | 12 | metadata block, semantics unresolved |
+| `0x09C` | `0x090` | 4 | four indexed bytes; semantics unresolved, not school/nickname selectors |
+| `0x090` | `0x094` | 12 | optional text getter/bounded setter; exact role unresolved |
 | `0x0A0` | `0x0A0` | 16 | packed metadata |
 | `0x0B0` | `0x0B0` | 16 | additional metadata |
 | stack temporary | `0x0C0` | 4 | serialized roster slot count |
@@ -331,7 +362,8 @@ and appends matches subject to caller output capacity. This supports a
 **data-driven realignment hypothesis**. Inspect those caller capacities too.
 
 The executable references `database\\schedule.big` at string VA `0x921B50`.
-That archive was not supplied. Conference membership changes alone do not prove
+`SCHEDULE.BIG` was uploaded in the project but has not been analyzed in this
+report. Conference membership changes alone do not prove
 that schedule templates, dynasty scheduling, tournament brackets, standings,
 conference selection screens, or automatic bids will support a changed league.
 The team's single division bit represents two divisions; broader division
@@ -349,11 +381,12 @@ Team statistics, selectors, schedules, dynasty tables, and save counts need audi
 
 The confirmed primary art ID getter `0x6F7CD0` reads bits 1..9 of team `+0xA4`.
 `0x6F7D00` reads additional nine-bit fields at bits 10..18 and 19..27. In stock
-data those three IDs agree; getters `0x6F7C60` / `0x6F7C98` also read nine-bit
-fields in `+0xA0` at bits 12..20 / 21..29. Matching values in stock do not
-establish identical intended semantics for every copy. Their encodings can
-hold up to 511, but that is not a supported-team-count guarantee. Stock IDs
-skip 50 and reach 153; assigning the skipped ID is not proven safe.
+data those three art IDs agree. The two nine-bit `+0xA0` fields are now
+identified as school audio (bits 12..20) and nickname audio (bits 21..29),
+not additional graphics references. School audio matches art IDs in stock;
+nickname audio joins its own dictionary. Nine-bit encodings hold up to 511,
+but that is not a supported-team-count guarantee. Stock art/school IDs skip
+50 and reach 153; assigning the skipped ID is not proven safe.
 
 Logo loading has active evidence, not just an isolated string: `0x1884E4`
 calls the art ID getter and `0x1884F8` formats **`../logos/a%03d.swf`** from

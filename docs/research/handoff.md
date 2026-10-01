@@ -1,16 +1,23 @@
-# Agent handoff: executable expansion research
+# Agent handoff: stock modding and research
 
 Updated **2026-10-01**. Repository: `ZMO34/MVP07ModdingSuite`, branch `main`.
 Start here to continue without relying on previous chat history.
 
-## User objective and accepted tradeoff
+## Current user objective and priorities
 
-Research hypotheses for adding playable team records, new team graphics,
-conference realignment/expansion, and **34 players/team**. The user accepts
-removing Create-a-Player/menu functionality and prefers game-generated players
-that can be edited externally. This pass was research and factual documentation,
-not implementation of expansion patches. The user requested all necessary
-findings/status/future directions on GitHub and removal of unneeded clutter.
+Build practical modding capability for the stock game first. Continue deepening
+roster/asset knowledge where it unlocks useful edits; complete reverse engineering
+is not required. Team/roster expansion is deferred. The earlier 34-player/CAP
+tradeoff below remains a long-term hypothesis, not the immediate task.
+
+The eventual Python GUI is a general BigGUI-style file/asset viewer plus roster
+editor: BIG browsing/replacement, textures, models, audio, and an ISO workspace.
+The user rebuilds test ISOs manually; their working PowerISO process is the
+baseline. Integrated extraction/edit/rebuild is future work. Preserve G001–G010
+for Create-a-Team and add future real-program stadium assets separately.
+Keep evidence rich but navigation compact: this handoff is the entry point,
+with detailed evidence in the existing topic reports. Do not create duplicate
+status/hypothesis/master reports for each conversation.
 
 ## Read order and evidence ownership
 
@@ -18,7 +25,7 @@ findings/status/future directions on GitHub and removal of unneeded clutter.
    address inventory, serializers, layouts, hard limits, asset paths, hypotheses,
    missing artifacts and staged runtime experiments. This is the executable source of truth.
 2. [Disc database format](database_big_roster.md): BIGF/RefPack directory and
-   stock team/sentinel/role/metadata maps.
+   stock team/sentinel/role/metadata maps, DBMisc inventory and audio-ID joins.
 3. [Memory save](memory_card_roster.md): physical array framing, populated versus
    serialized counts, ID joins, strings and profile caveats.
 4. [Player fields](save_player_format.md): exact general, batting and pitcher
@@ -68,7 +75,7 @@ reproduce the research but does not include copyrighted game data.
 
 - Added `tools/inspect_elf.py`: ELF info, string search, direct call search,
   candidate address xrefs, partial R5900-aware disassembly, and exact-build
-  verification of **35 instruction fingerprints**. It is read-only.
+  verification of **62 instruction fingerprints**. It is read-only.
 - Added `tools/verify_stock.py`: supplied-profile cross-file, table framing,
   reserve joins, decoded/no-change round trips and independent mask-preservation checks.
 - Corrected batting bases, seven-bit percentage widths, and added FB/LD/GB
@@ -113,22 +120,89 @@ interactively tested in this execution environment. There is no modified-game
 boot/gameplay/save-reload/dynasty test, expansion patch, new-team texture,
 complete scheduling-archive map or proven save checksum procedure.
 
-## Stadium / 3D research added\n\nThe vanilla stadium folder has now been inventoried and documented separately.\nConfirmed findings include 23 authentic stadium BIGs, ten preserved generic BIGs,\nmodular ORD/ORL + SSH + DAT/IFO/CSV resources, and a controlled comparison of\nVENUDAY/VENUDUSK/VENUNITE showing 55 identical and 43 variant-dependent members.\nDirect MVP 05 ord2o/OEdit compatibility remains untested and must not be treated\nas confirmed. See [stadium_3d_assets.md](stadium_3d_assets.md).\n\n## Immediate next work
+## Stadium / 3D research added
 
-Begin with an unmodified PCSX2 baseline and edited-stock load/save tests.
-Realigning one existing team is the smallest expansion-related experiment.
-For 34-player work, trace the active-player validator, name/player registration,
-all team layout consumers, 4035/1650 pools and save transfers before choosing
-an inline34-slot redesign. Keep ballpark data and all save headers intact.
-For teams/conferences, audit 153/16 consumers and acquire the schedule/art/uniform
-archives. See the report's ordered experiments and candidate 34-slot offsets.
+The vanilla stadium folder has now been inventoried and documented separately.
+Confirmed findings include 23 authentic stadium BIGs, ten preserved generic BIGs,
+modular ORD/ORL + SSH + DAT/IFO/CSV resources, and a controlled comparison of
+VENUDAY/VENUDUSK/VENUNITE showing 55 identical and 43 variant-dependent members.
+Direct MVP 05 ord2o/OEdit compatibility remains untested and must not be treated
+as confirmed. See [stadium_3d_assets.md](stadium_3d_assets.md).
 
-Unresolved field labels: batting/defense selector-to-pitcher-hand association,
-relief categories, additional role bits, body-type transform, visual appearance
-enums, some metadata/art copies, custom-ballpark trailing24 bytes, uniform key
-semantics, full ID-table framing and overall memory/menu/dynasty limits.
+## Recent-chat reconciliation (2026-10-01)
 
-Do not resume from superseded claims: 723-byte team serialization, unknown 491-byte
-global header, 4096-player save array, 3826 as full serialized capacity, 16-byte
-batting records starting at the old anchors, four lineup arrays in the tail,
-or nine-bit art IDs as proof of 511 working teams.
+Coverage: the supplied DBMisc thread, retrieved recent project-chat excerpts,
+and current `main` at `cf3a8e5` were reconciled. Retrieval returns relevant
+excerpts rather than full transcripts; this is not an exhaustive message-by-
+message archive. Direct game bytes/code override conflicting earlier guesses.
+
+| Discussion | Preserved finding / resulting update |
+|---|---|
+| MVP Modding Suite Main | Python general editor vision; single-PC workflow; GitHub is the canonical handoff. Current executable/editor work supersedes the original scaffold plan. |
+| Roster Bin Reversing | Disc/save backends and role/player research retained; latest UI/CSV/rotation/Undo/Redo capabilities already present at `cf3a8e5` preserved. Height/weight physical conversion remains unresolved. |
+| Analyze PS2 Executable | Expansion deprioritized; corrected stadium bits 4..9 and table resolution added to reports; broad BIG/ISO workflow captured without claiming it is built. |
+| 3D Model Modding | Existing inventory and VENU comparison retained; all generics preserved; actual stock assignment distinguished from authentic archive presence. Practical modding takes priority over complete format reversal. |
+| DBMisc analysis | Nine-member inventory rechecked; exact audio selectors solved; non-playable school choices retained as CAT vocabulary. Earlier `+0x090` audio guess and `+0xA0` graphics labels corrected. |
+| Refine Research Prompt (Sept 25) | Fewer research files, rich cumulative evidence, near-autonomous roster focus and user-performed ISO testing retained through this compact handoff. |
+
+No speculative calendar estimate is made a delivery commitment. Archive/model
+conversion, asset linking and executable expansion depend on controlled tests.
+
+## New direct results and verification
+
+- School audio: `+0xA0` bits 12..20, getter/setter `0x6F7C60/0x6F7C70`.
+- Nickname audio: `+0xA0` bits 21..29, getter/setter `0x6F7C98/0x6F7CA8`;
+  152/152 exact CSV matches, 120 unique IDs, 18 stock teams with extended IDs.
+- CAT CSV IDs flow through decimal conversion to 68-byte ID/string rows and
+  those same setters. Stock school calls use 1..153 except 50; CAT school
+  vocabulary uses 201..360. Equality to stock art IDs does not make the audio
+  field a graphics selector. `+0x090` remains unresolved indexed-byte data.
+- `teaminfo.csv` joins all 152 records by logo ID, matching text and location.
+  Abbreviations are not unique. Uniform keys are ordinal IDs 1..152 × 0/1,
+  which differ from school/logo IDs past the omitted art ID 50.
+- Stadium getter is shift 4/mask 63; 34 selector entries resolve through a
+  separate 38-resource table. 20 stock teams initially select authentic parks,
+  132 generics. Virginia/Mississippi State select G003; reassignment/overrides
+  are untested.
+- `+0xAC` has eight three-bit accessor fields, not two nine-bit references.
+  Presentation/color semantics remain unresolved.
+- Added read-only `tools/analyze_team_audio.py`; no game binaries, patches,
+  full extracted dictionaries, or redundant reports were committed.
+
+Reproduction commands (matching originals required):
+
+```bash
+python -m compileall -q src tools run_editor.py
+python -m unittest discover -s tests -v
+python tools/inspect_elf.py /path/to/SLUS_215.82 verify
+python tools/analyze_team_audio.py /path/to/DATABASE.BIG /path/to/DBMISC.BIG --verify-stock --json
+python tools/verify_stock.py /path/to/DATABASE.BIG /path/to/BASLUS-21582R659be98.zip
+```
+
+The DBMisc checks also pass for compressed and decoded raw `roster.bin`.
+The supplied disc/save stock checks and 122 preservation checks were rerun;
+62 executable fingerprints replace the historical 35-check total. Audio
+playback, modified-file gameplay, GUI interaction and expansion remain untested.
+
+## Immediate next work
+
+1. User tests ordinary edited stock files through boot/load/gameplay/save/reload.
+2. Separately test one school call (CAT ID 226) and one nickname (213) on an
+   existing team while preserving art/location/conference and unrelated bits.
+   Trace audio project/event banks if a call is silent or wrong.
+3. Validate lineup-hand labels, relief roles, appearance enum choices, displayed
+   height/weight conversions, `+0x090` byte selectors, color/presentation fields,
+   uniform payloads and custom-ballpark trailing 24 bytes where useful for edits.
+4. Test a one-field stadium reassignment and a one-member texture replacement;
+   check normal games and dynasty/frontend overrides. Preserve generics.
+5. Develop the general BIG browser/replacement workflow, followed by proven
+   texture/model and ISO workflows. Additional asset files still need known
+   consumer paths; adding bytes to an archive/ISO does not register a new asset.
+6. Revisit expanded rosters/teams/conferences only after the stock path is proven.
+
+Do not resume from superseded claims: 723-byte team serialization, unknown
+491-byte global header, 4096-player save array, 3826 as full serialized capacity,
+old batting bases, four lineup arrays in the ballpark tail, five graphics refs
+(the two at `+0xA0` are audio), `+0x090` as school/nickname selector, nine-bit
+stadium ID or shift-by-3, two nine-bit `+0xAC` refs, or nine-bit encoding as
+proof of a globally working team/asset maximum.

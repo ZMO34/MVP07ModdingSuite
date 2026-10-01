@@ -54,6 +54,38 @@ PROFILE_WORDS = {
 }
 
 
+# Audio selectors and stadium accessor, confirmed against DBMisc CSV consumers.
+PROFILE_WORDS.update({
+    0x6f7c60: 0x8c8200a0,  # school audio getter
+    0x6f7c64: 0x00021302,  # shift 12
+    0x6f7c6c: 0x304201ff,
+    0x6f7c70: 0x8c8200a0,  # school audio setter
+    0x6f7c7c: 0x34630fff,  # complement of bits 12..20 with preceding LUI
+    0x6f7c80: 0x00052b00,
+    0x6f7c90: 0xac8200a0,
+    0x6f7c98: 0x8c8200a0,  # nickname audio getter
+    0x6f7c9c: 0x00021542,  # shift 21
+    0x6f7ca4: 0x304201ff,
+    0x6f7ca8: 0x8c8200a0,  # nickname audio setter
+    0x6f7cb4: 0x3463ffff,
+    0x6f7cb8: 0x00052d40,
+    0x6f7cc8: 0xac8200a0,
+    0x787028: 0x24a5a8d8,  # schoolnameaudio.csv string reference
+    0x787034: 0x0c1e2128,  # CSV loader
+    0x787048: 0x24a5a8f0,  # nicknameaudio.csv string reference
+    0x78704c: 0x0c1e2128,
+    0x7885b0: 0x0c1a472a,  # decimal ID conversion
+    0x7885b8: 0xae02fffc,  # ID stored before display string
+    0x789940: 0x0c1bdf2a,  # CAT applies nickname ID
+    0x7899a0: 0x0c1bdf1c,  # CAT applies school ID
+    0x1a91c4: 0x0c1bdf18,  # consumer reads school selector
+    0x1a91d0: 0x0c1bdf26,  # consumer reads nickname selector
+    0x6f7c30: 0x8c8200a8,  # stadium selector
+    0x6f7c34: 0x00021102,  # shift 4, not 3
+    0x6f7c3c: 0x3042003f,
+})
+
+
 class Elf:
     def __init__(self, path):
         self.data = Path(path).read_bytes()

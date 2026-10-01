@@ -1,7 +1,8 @@
 # MVP 07 Modding Suite
 
-Reverse-engineering and roster tooling for **MVP 07: NCAA Baseball (PS2,
-SLUS-21582)**. Updated **2026-10-01**.
+Python modding tools and reverse engineering for **MVP 07: NCAA Baseball (PS2,
+SLUS-21582)**. The long-term goal is a general BIG/ISO asset viewer and editor
+alongside roster editing. Updated **2026-10-01**.
 
 ## Current status
 
@@ -17,6 +18,9 @@ SLUS-21582)**. Updated **2026-10-01**.
 | Lineups | Role packing is mapped and displayed; direct graphical batting/defensive lineup editing is still pending |
 | Writers | Experimental: structural round trips checked; modified game files have not been boot/gameplay tested |
 | Executable research | Team serializer, runtime layout, roster/player/team/conference limits, ballpark tail and asset-loading paths mapped |
+| Team announcer calls / DBMisc | School call at `+0xA0` bits 12–20 and nickname call at bits 21–29 confirmed by CSV consumers; all 152 nickname assignments match. Playback and GUI controls pending |
+| Stadium assignment | Six-bit selector at `+0xA8` bits 4–9 confirmed; executable selector/resource tables resolved. Virginia/Mississippi State initially select generics despite authentic archives |
+| General BIG/ISO workspace | Long-term direction agreed; general browser, arbitrary-member UI editing, texture/model import and integrated ISO rebuilding not implemented |
 | Stadium / 3D assets | BIG resource layout, 23 authentic + 10 generic packages, and VENU day/dusk/night member differences documented; ORD/ORL conversion not yet proven |
 | 34-player rosters, added teams/conferences/assets | Hypotheses documented; executable patches, expanded editor profiles and game validation not implemented |
 
@@ -26,7 +30,8 @@ The executable has **30-slot runtime team storage**, a validation branch for
 25-slot Create-a-Player feature alone cannot supply the **5169 general records**
 needed for 152 teams × 34 players plus a default record.
 
-The accepted future direction is **34 game-generated players per team, editable
+Expansion is deferred while practical stock modding and roster metadata are
+validated. The earlier accepted long-term direction remains **34 game-generated players per team, editable
 through the external roster editor**, with Create-a-Player removable. Generation
 of additional complete player records still needs tracing; the existing save
 proves name generation for stock players, not automatic expansion to 34.
@@ -67,6 +72,9 @@ remaining limitations are tracked in
   tendencies.
 - Added a read-only ELF inspector with exact-build checks and a reproducible
   stock-profile verification tool.
+- Joined all 152 nickname audio selectors to DBMisc; traced CAT school/nickname
+  CSV IDs through executable setters, separating audio fields from logo IDs.
+- Resolved stock stadium selectors and corrected earlier nine-bit ID guesses.
 - Mapped `DATABASE.BIG` / `roster.bin`, the analyzed memory-card roster save,
   player packed fields, stadium packages and major executable consumers.
 
@@ -102,6 +110,7 @@ larger than the originals.
 ```bash
 python -m compileall -q src tools run_editor.py
 python -m unittest discover -s tests -v
+python tools/analyze_team_audio.py /path/to/DATABASE.BIG /path/to/DBMISC.BIG --verify-stock
 ```
 
 For executable inspection, see the optional Capstone commands in the research
@@ -109,15 +118,26 @@ report. Originals and extracted game assets are not included in this repository.
 
 ## Immediate directions
 
+The current priority is enough verified understanding to mod the stock game.
+Perfect reverse engineering and expanded rosters/teams are not prerequisites.
+The user manually rebuilds test ISOs; their PowerISO workflow is the current
+working baseline. An integrated extract → temporary workspace → edit → rebuild
+workflow is future work and must preserve the disc's boot/filesystem details.
+The ten generic stadiums remain available for Create-a-Team; new real-program
+parks should be added separately when asset linking is understood.
+
 1. Validate ordinary edited stock files in PCSX2 through load, gameplay,
    save/reload and dynasty simulation.
 2. Add direct batting-order and defensive-alignment controls using the already
    mapped role packing.
 3. Add explicit player move/swap workflows.
-4. Continue controlled roster/executable work before attempting 34-player or
-   team-expansion profiles.
-5. Improve RefPack compression and graphical/stadium workflows after the stock
-   editor path is proven in-game.
+4. Validate school/nickname call assignments with one-field stock-team edits;
+   map audio bank/event coverage, uniform payloads, colors and remaining flags.
+5. Confirm displayed height/weight conversions: writable packed values are
+   six-bit height and eight-bit weight, not yet documented physical units.
+6. Build the general BIG viewer/replacement workflow, then textures/models and
+   integrated ISO rebuilding as their safe round trips become established.
+7. Keep 34-player/team/conference expansion research available but deferred.
 
 ## Research rules
 

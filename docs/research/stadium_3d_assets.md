@@ -59,6 +59,55 @@ The vanilla archive names line up with the game's 23 authentic stadiums:
 The mapping above is useful for cross-checking any team-to-stadium field found
 elsewhere in the database or executable.
 
+## Confirmed team-to-stadium resolution (2026-10-01)
+
+The correct serialized/runtime team selector is `(LE_DWORD(+0xA8) >> 4) & 0x3F`.
+Getter `0x6F7C30` explicitly shifts **4**, not 3, and masks 63; setter
+`0x6F7C40` preserves unrelated bits. Earlier nine-bit/52-distinct-value guesses
+combined several packed fields and are superseded.
+
+On the executable SHA-256 recorded in [executable.md](executable.md), resolver
+`0x197D50` indexes three 34-entry selector→resource-index tables at
+`0x8F3F90`, `0x8F4018`, `0x8F40A0` for mode 0/1/2. Missing entries are `-1`;
+it tries the requested mode, then the second, third and first tables in that
+order. Resource indexes refer to the **38-entry** string pointer table at
+`0x85A4D8`, whose size is also observed in search loop `0x427588` (38).
+Selector numbers are not resource-pointer indexes.
+
+| Selector(s) | Resolved resource stems in order |
+|---|---|
+| 0..5 | RBLTDAY, CHANDAY, HAWKDAY, ABOXDAY, ARODDAY, DISHDAY |
+| 6..11 | DOUGDAY, FRANDAY, PACKDAY, SWAYDAY, LINDDAY, RECKDAY |
+| 12..17 | FERRDAY, JOHNDAY, SUNKDAY, GOODDAY, KINDDAY, DICKDAY |
+| 18..22 | DEDEDAY, CBUMDAY, CLRKDAY, DVENDAY, DUDYDAY |
+| 23..32 | G001DAY through G010DAY |
+| 33 | VENUDAY / VENUDUSK / VENUNITE by mode 0/1/2 |
+
+All three modes fall back to the same DAY resource for selectors 0..32 in
+these initial tables. This is static resource resolution, not proof of all
+lighting or runtime overrides. MIN1DAY/MIN2DAY are present in the resource
+pointer table but not these selector tables. Values 34..63 fit the field but
+would index outside the 34-row tables: no support for them is established.
+
+| Stock team | Selector | Resolved initial resource |
+|---|---:|---|
+| LSU | 3 | ABOXDAY.BIG |
+| Georgia Tech | 1 | CHANDAY.BIG |
+| Tennessee | 10 | LINDDAY.BIG |
+| Arkansas | 19 | CBUMDAY.BIG |
+| East Carolina | 20 | CLRKDAY.BIG |
+| Georgia | 24 | G002DAY.BIG |
+| Virginia | 25 | G003DAY.BIG |
+| Mississippi State | 25 | G003DAY.BIG |
+
+Virginia and Mississippi State have authentic archives/table entries but stock
+team records select a generic park. Archive presence does not establish actual
+stock assignment. Across 152 teams: 20 records select authentic parks and 132
+select generics; there are 25 distinct selectors. Generic counts are G001=4,
+G002=36, G003=50, G004=29 and G006=13. All ten generic resources remain preserved,
+including ones not selected by these stock records. Runtime matchup/dynasty or
+frontend overrides still need checking.
+
 ## Standard stadium contents
 
 Normal stadium BIGs use a highly regular resource layout. A standard package
@@ -244,8 +293,8 @@ These are tests, not new feature goals:
    game boots and displays it.
 4. After geometry conversion is understood, make a minimal geometry edit while
    preserving every unrelated member.
-5. Cross-reference the roster/database stadium-like team field with known
-   authentic BIGs using a controlled in-game assignment test.
+5. Test the confirmed `+0xA8` selector with a one-field assignment change,
+   preserving all other bits; check whether frontend/dynasty overrides affect it.
 
 The purpose of these tests is practical mod readiness: identify the smallest
 safe edit path while preserving unknown data.

@@ -133,13 +133,14 @@ DAT rows. The executable accessors confirm the location/conference/division widt
 | `+0xA0`, 0..5 | location ID, 1..49 observed | confirmed |
 | `+0xA0`, 6..10 | conference ID, 1..16 observed | confirmed |
 | `+0xA0`, 11 | conference division selector | confirmed |
-| `+0xA0`, 12..20 | nine-bit reference matching primary art ID in stock | value correlation confirmed; separate consumer semantics incomplete |
-| `+0xA0`, 21..29 | another nine-bit reference | getter identified; final meaning unresolved |
+| `+0xA0`, 12..20 | school-name audio selector | confirmed by CAT CSV consumer, getter/setter; equals logo ID in stock |
+| `+0xA0`, 21..29 | nickname audio selector | confirmed: 152/152 exact nickname CSV joins and CAT consumer |
 | `+0xA4`, 1..9 | primary team art ID used by logo formatting | confirmed |
 | `+0xA4`, 10..18 and 19..27 | two further art/reference IDs, matching first in stock | values/getters confirmed; consumer distinctions unresolved |
 | `+0xA4`, 0 | flag set only for BYU in sample | unknown meaning |
 | `+0xA4`, 28..30 | value 1..7 | unknown meaning |
 | `+0xA4`, 31 | zero in sample | unknown meaning |
+| `+0xA8`, 4..9 | six-bit stadium selector | confirmed getter `0x6F7C30`, resolver `0x197D50` |
 
 Stock art IDs skip 50 and extend through 153. Do not confuse IDs with the 153
 serialized team records including the sentinel. Nine-bit encodings hold 0..511;
@@ -149,14 +150,119 @@ Division selector is set for the second named division in ACC (Atlantic), SEC
 (West), and WCC (West); `conf.dat` provides the corresponding labels. Broader
 league changes need schedule/dynasty evidence beyond these fields.
 
-Still-unlabeled correlations worth preserving for future research:
+Remaining metadata:
 
-- `+0xA8` is a nine-bit ID, 52 distinct stock values.
-- `+0xAC` holds two nine-bit IDs: 17 distinct low values and 21 high values;
-  bits 18..31 are zero in stock. Audio/presentation/color references are hypotheses.
-- Serialized `+0x090` has 141 distinct values across 152 teams; announcer/stadium
-  hash/reference is a hypothesis. It corresponds to runtime `+0x09C`, not `+0x090`.
-- Serialized bytes `+0xB0..+0xBF` are zero in all stock records; still preserve them.
+- `+0xA8` contains several fields, not one nine-bit stadium ID. Accessors also
+  extract bits 0..1, 2..3 and 13..17; their semantics remain unresolved.
+- `+0xAC` is accessed as **eight three-bit fields**, grouped into two indexed
+  channels of four: `0,6,12,18` at `0x6F7EB0` and `3,9,15,21` at `0x6F7E28`.
+  The previous two-nine-bit-reference description was an arbitrary statistical
+  partition, not executable evidence. Color/presentation semantics remain unknown.
+- Serialized `+0x090` maps to runtime `+0x09C`. `0x6F7B78` reads it as four
+  indexed bytes; `0x6F7B88` searches those bytes. Its 141 distinct DWORD values
+  do **not** identify the school/nickname selectors. Exact meaning remains unknown.
+- Serialized `+0x094..+0x09F` maps to runtime `+0x090..+0x09B`; there is a text
+  getter at `0x6F7B40` and an 11-byte bounded setter at `0x6F7B48`. Stock contents
+  are zero; the role of this optional string still needs tracing.
+- Serialized bytes `+0xB0..+0xBF` are zero in stock; indexed DWORD getter/setter
+  `0x6F7F90` / `0x6F7FA0` exist. Preserve these fields.
+
+## DBMisc and announcer selectors: direct join (2026-10-01)
+
+Inputs used in this pass:
+
+| Input | SHA-256 |
+|---|---|
+| `DBMISC(2).BIG` (19,446 bytes) | `af546dc94ff61ad27f45587fa6079f928a34059cb4a73bc28013f76d8023c993` |
+| `DATABASE.BIG` | `35f93770a501c47b85e9e8add380aa603adbdf9eb59e807fbdb30ba0b8f0d252` |
+| decoded stock `roster.bin` | `1bdd417263ab9751583f5abbb930d314718684af2896a682ca5b445647d4724e` |
+
+The DBMisc archive has nine **uncompressed** members. It mixes playable-team
+metadata, Create-a-Team choices, and other configuration; it is not uniformly
+legacy MLB data or uniformly Create-a-Team data.
+
+| Member | Direct evidence / practical role |
+|---|---|
+| `teaminfo.csv` | 152 playable rows. Join by `Logo ID`: every row matches roster abbreviation, nickname, city and location. Abbreviations are not unique join keys. |
+| `uniform.bin` | LE `u16` count 304, exactly `2 + 304*7` bytes; every key `(1..152, 0/1)` occurs once. Ordinal team keys differ from stock logo/school IDs after the gap at 50. Payload meanings and 0/1 home/away labels remain unproved. |
+| `schoolnameaudio.csv` | 160 school-name choices with numeric IDs 201..360. Includes both playable and non-playable schools; not a cut-team inventory. |
+| `nicknameaudio.csv` | 212 ID/name rows: 1..106 and 201..306. Extended real-college vocabulary 201..275 and generic names 276..306. |
+| `logotable.csv` | Mixed-section CSV: Custom logo range 201..243, Alpha 244..269; 69 logo choices with default nicknames. Separate namespace from audio IDs. |
+| `citystatetable.csv` | 60 city/state text choices, no numeric ID column. Not a direct `Location ID` dictionary; `location.dat` is the established roster location join. |
+| `stadium.csv` | MLB abbreviations/park factors; no NCAA roster-to-stadium assignment established. |
+| `challengeitems.csv`, `challenges.csv` | Present; challenge/config content outside this focused audio pass. |
+
+For a LE DWORD `w` at team-record `+0xA0`:
+
+```python
+school_audio_id = (w >> 12) & 0x1FF
+nickname_audio_id = (w >> 21) & 0x1FF
+# Preserve every other bit if writing either field.
+w = (w & ~0x001FF000) | ((school_audio_id & 0x1FF) << 12)
+w = (w & ~0x3FE00000) | ((nickname_audio_id & 0x1FF) << 21)
+```
+
+**Nickname identification:** all **152/152** decoded selectors resolve to the
+exact roster nickname string. There are 120 distinct IDs; 18 teams already use
+IDs from 201..275. Thus extended nicknames are used by ordinary stock teams too.
+Nevada is `100 = Wolf Pack`; `101 = Wolfpack` is a different entry. Removing
+spaces while matching names creates a false mismatch; retain exact text.
+
+**School identification:** all stock selectors occupy 1..153 except 50, and
+match the stock logo ID for all 152 teams. That equality originally caused this
+field to be described as another graphics reference. Executable CSV-to-setter
+tracing identifies its separate school-audio role. None of the stock selectors
+joins directly to the 201..360 CSV namespace. There are 19 exact-name overlaps
+between stock schools and the CAT school list, with different IDs; additional
+name variants exist. Never assign CAT IDs by assuming a stock school with the
+same name already uses them.
+
+| Team / intended name | Stock school call | CAT school call for same name | Nickname call |
+|---|---:|---:|---|
+| Georgia | 79 | absent | 19 Bulldogs |
+| Appalachian State | 139 | 206 | 66 Mountaineers |
+| Georgia Southern | 131 | 252 | 33 Eagles |
+| Marshall | 102 | 278 | 271 Thundering Herd |
+| Xavier | 153 | 357 | 246 Musketeers |
+| Coastal Carolina (not a stock team) | — | 226 | 213 Chanticleers (available vocabulary) |
+
+The last row is a proposed assignment from two dictionaries, not an encoded
+school/nickname pairing or proof of a playable added team. CSV rows do not prove
+that every audio clip is present or that normal-game commentary will play it.
+
+Executable confirmation uses the matching `SLUS_215.82` hash in
+[executable.md](executable.md):
+
+1. String VAs `0x94A8D8` / `0x94A8F0` identify the two audio CSVs.
+2. Calls at `0x787034` / `0x78704C` feed them to `0x7884A0`. This loader parses
+   the first column as a decimal ID (`0x7885B0`), stores it before the string
+   (`0x7885B8`), and advances in 68-byte ID/string records.
+3. School rows are stored at the CAT object `+0x907C`; nickname rows at `+0x560C`.
+   CAT application searches the nickname text and passes its ID to setter
+   `0x6F7CA8` at `0x789940`, then searches school-name text and calls setter
+   `0x6F7C70` at `0x7899A0`. A failed text match selects ID zero.
+4. Getter/setter pairs are school `0x6F7C60/0x6F7C70` (shift 12, mask 511)
+   and nickname `0x6F7C98/0x6F7CA8` (shift 21, mask 511). A team-info consumer
+   at `0x1A91C4/0x1A91D0` reads them independently from logo getter `0x6F7CD0`.
+5. Serializer `0x6B19D0` transfers runtime `+0xA0..+0xAF` unchanged to the
+   same serialized offsets. The separate `+0x090` DWORD is not either selector.
+
+Reproduce without modifying inputs:
+
+```bash
+python tools/analyze_team_audio.py /path/to/DATABASE.BIG /path/to/DBMISC.BIG --verify-stock
+python tools/analyze_team_audio.py /path/to/roster.bin /path/to/DBMISC.BIG --verify-stock --json
+python tools/inspect_elf.py /path/to/SLUS_215.82 verify
+```
+
+The analyzer also accepts the decoded stock roster and prints all 152 joins
+with `--json`. These selectors are confirmed statically, **not playback-tested**.
+No announcer GUI controls, audio-bank edits, or game patches were added here.
+Next practical test: change one existing team's school call to CAT ID 226,
+leaving its nickname/art/location intact; separately change only nickname to
+213. The user rebuilds the ISO and checks load, matchup introduction, normal
+commentary, and save/reload against an untouched baseline. This isolates ID
+selection from bank/event coverage; it does not require team expansion.
 
 ## Tooling and continuation
 
