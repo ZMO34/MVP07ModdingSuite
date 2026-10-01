@@ -9,7 +9,8 @@ TEAM_COUNT = 152
 SAVE_TEAM_RECORD_SIZE = 727
 SAVE_ROSTER_SLOTS = 30
 SAVE_PLAYER_RECORD_SIZE = 84
-SAVE_PLAYER_RECORDS = 3826
+SAVE_PLAYER_RECORDS = 3826  # populated/editable rows: Default + stock + CAP
+SAVE_PLAYER_CAPACITY = 4035  # full serialized array, including zero reserve
 SAVE_FIRST_NAME_SIZE = 12
 SAVE_LAST_NAME_SIZE = 16
 SAVE_PLAYER_ATTRIBUTE_SIZE = 56
@@ -75,6 +76,7 @@ SAVE_PITCHER_BASE = 0xF22E3
 SAVE_PITCHER_RECORD_SIZE = 20
 SAVE_PITCHER_STOCK_RECORDS = 1609
 SAVE_PITCHER_RECORDS = 1634  # 1609 stock pitcher.dat rows + 25 CAP reserve rows
+SAVE_PITCHER_CAPACITY = 1650  # full serialized array, including zero reserve
 
 PITCHER_BITFIELDS = {
     "pitchattrib_stamina": (0, 7),
@@ -106,35 +108,42 @@ PITCHER_BITFIELDS = {
 
 # SLUS-21582 MVP 07 roster-save batting tables.
 # These are fixed-size runtime arrays indexed by save player index.
-SAVE_LH_BATTING_BASE = 0x7F003
-SAVE_RH_BATTING_BASE = 0x8EC37
+# Physical array bases. Earlier anchors were four bytes early and therefore
+# hid the final FB/LD/GB word of each record behind the next record's slice.
+SAVE_LH_BATTING_BASE = 0x7F007
+SAVE_RH_BATTING_BASE = 0x8EC3B
 SAVE_BATTING_RECORD_SIZE = 16
 
 BATTING_BITFIELDS = {
-    "lrattrib_contact": (32, 7),
-    "lrattrib_power": (39, 7),
-    "lrattrib_hit_ul": (46, 2),
-    "lrattrib_hit_cl": (48, 2),
-    "lrattrib_hit_ll": (50, 2),
-    "lrattrib_hit_um": (52, 2),
-    "lrattrib_hit_cm": (54, 2),
-    "lrattrib_hit_lm": (56, 2),
-    "lrattrib_hit_ur": (58, 2),
-    "lrattrib_hit_cr": (60, 2),
-    "lrattrib_hit_lr": (62, 2),
-    "lrattrib_chasefb": (64, 4),
-    "lrattrib_chaseslowbreak": (68, 4),
-    "lrattrib_chasehardbreak": (72, 4),
-    "lrattrib_takefb": (76, 4),
-    "lrattrib_takeslowbreak": (80, 4),
-    "lrattrib_takehardbreak": (84, 4),
-    "lrattrib_missfb": (88, 4),
-    "lrattrib_missslowbreak": (92, 4),
-    "lrattrib_misshardbreak": (96, 4),
-    "lrattrib_lf_pct": (100, 6),
-    "lrattrib_cf_pct": (107, 5),
-    "lrattrib_rf_pct": (114, 6),
-    "lrattrib_hr_pct": (121, 4),
+    "lrattrib_contact": (0, 7),
+    "lrattrib_power": (7, 7),
+    "lrattrib_hit_ul": (14, 2),
+    "lrattrib_hit_cl": (16, 2),
+    "lrattrib_hit_ll": (18, 2),
+    "lrattrib_hit_um": (20, 2),
+    "lrattrib_hit_cm": (22, 2),
+    "lrattrib_hit_lm": (24, 2),
+    "lrattrib_hit_ur": (26, 2),
+    "lrattrib_hit_cr": (28, 2),
+    "lrattrib_hit_lr": (30, 2),
+    "lrattrib_chasefb": (32, 4),
+    "lrattrib_chaseslowbreak": (36, 4),
+    "lrattrib_chasehardbreak": (40, 4),
+    "lrattrib_takefb": (44, 4),
+    "lrattrib_takeslowbreak": (48, 4),
+    "lrattrib_takehardbreak": (52, 4),
+    "lrattrib_missfb": (56, 4),
+    "lrattrib_missslowbreak": (60, 4),
+    "lrattrib_misshardbreak": (64, 4),
+    # Executable runtime getter 0x1BE458 uses seven bits for all four.
+    # Default CF=34 exposes why stock maxima alone cannot prove widths.
+    "lrattrib_lf_pct": (68, 7),
+    "lrattrib_cf_pct": (75, 7),
+    "lrattrib_rf_pct": (82, 7),
+    "lrattrib_hr_pct": (89, 7),
+    "lrattrib_fb_pct": (96, 7),
+    "lrattrib_ld_pct": (103, 7),
+    "lrattrib_gb_pct": (110, 7),
 }
 
 

@@ -1,65 +1,65 @@
 # GUI roster editor status
 
-Initial editor architecture added 2026-10-01.
+Updated 2026-10-01. The unified Python/Tkinter editor operates on stock profiles.
+Executable expansion research does not expand the editor's supported profiles.
 
-## Current capabilities
+## Current backends
 
-- Open `DATABASE.BIG` directly.
-- Parse BIGF and RefPack/QFS members.
-- Browse all 152 team records and all 25 roster slots per team.
-- Resolve each roster player ID into `attrib.dat`, `rhattrib.dat`, `lhattrib.dat`, and `pitcher.dat`.
-- Edit confirmed team text fields.
-- Edit an initial set of player identity/general, batting, and pitching fields.
-- Display inferred batting-order values when the stock role flag matches a confirmed common pattern.
-- Display the confirmed team asset ID while leaving unresolved metadata explicitly unlabeled.
-- Save a rebuilt `DATABASE.BIG` using conservative literal-only RefPack compression.
-- Re-open the saved archive immediately as a structural verification step.
+| Source | Playable teams / slots | Names and attributes | Output |
+|---|---|---|---|
+| `DATABASE.BIG` | 152 / 25 | DAT-backed names, identity/general, appearance, batting and pitching fields | rebuilt BIGF with literal-only RefPack |
+| raw/compressed `roster.bin` | 152 / 25 | IDs only; no companion DATs | same raw/compressed source kind |
+| `Rost*.sav` | 152 / 30 | generated names and mapped packed general/appearance, batting and pitching fields | raw save |
+| PCSX2 roster-save ZIP | 152 / 30 | same save backend | ZIP with other members preserved |
 
-## Important limitation
+Shared functionality includes team key/name/abbreviation/city/nickname editing,
+raw roster-role DWORD editing, starting-rotation index editing, and two batting
+and defensive channels displayed from decoded role bits. Existing roster player
+IDs are preserved by the GUI. Team art/conference/location metadata is displayed;
+full graphical asset and conference editing workflows are not implemented.
 
-The save path is structurally verified by our parser but has **not yet been game-tested in an ISO**. Keep it marked experimental until an ISO boot/gameplay test confirms EA's runtime accepts the larger literal-only RefPack streams.
+The role packing is confirmed by executable getters/setters. vs-RHP/vs-LHP aliases
+use the user's description of the default/secondary screen; the exact engine
+selector-to-hand association still needs an unequal-channel controlled test.
 
-## Next GUI work
+## Save-player editing
 
-- Add validation/ranges and friendly enum names.
-- Add explicit lineup/rotation editing after the role bitfield is fully decoded.
-- Add roster reassignment/player movement tools.
-- Add undo/redo and change tracking.
-- Add a faster RefPack compressor so rebuilt archives stay close to stock size.
+The former "all packed attributes are read-only" status is obsolete. Corrected
+batting bases and seven-bit percentage widths also expose FB/LD/GB tendencies;
+all 27 batting fields agree with both stock/default tables. Mapped
+fields in the 56-byte general payload, 16-byte LH/RH batting records, and 20-byte
+pitcher records are editable. First/last names are separate fixed buffers.
+The code preserves bits outside the targeted masks. Bitfield maps are listed in
+[memory-card research](research/memory_card_roster.md) and defined by constants in
+`src/mvp07_modding_suite/memory_save.py`.
 
+Body type remains explicitly experimental: stock DAT bodytype is constant, so
+its transform cannot be proven from stock correlations. Eye protection has
+inferred derived controls; an in-game visual diff is still needed. Unknown
+packed fields and unknown team metadata remain opaque. Stock ID-index mapping
+uses heuristic discovery with consistency checks, not a generic expanded-save parser.
 
-## Unified document backends
+## Validation and limitations
 
-The GUI now uses `src/mvp07_modding_suite/documents.py` and can directly open:
+BIG writers are reparsed, decoded member content is checked on the supplied
+sample, and no-change save output is byte-identical. Mapped-field comparisons
+and controlled mask writes are checked separately. These establish structural
+behavior, not game compatibility. No modified ISO/save boot, gameplay, memory-card
+checksum behavior, or dynasty test has been completed. Rebuilt archives can grow
+because the compressor emits literals only.
 
-| Source | Team/roster | Names | DAT ratings | Save |
-|---|---|---|---|---|
-| DATABASE.BIG | yes, 25 slots | yes | yes | rebuilt BIGF |
-| roster.bin | yes, 25 slots | IDs only | no companion DATs | RefPack/raw bin |
-| Rost*.sav | yes, 30 slots | yes | packed payload read-only | raw save |
-| PCSX2 save ZIP | yes, 30 slots | yes | packed payload read-only | ZIP preserved |
+The supported profiles are fixed: 152 teams, 25/30 roster slots, a 3826 populated-player
+editing range within 4035 serialized records, and sample-specific table offsets. A 34-slot/extra-team save
+requires explicit versioned backend changes; editing an executable count does
+not change these constants or relocate save arrays automatically.
 
-For memory-card saves the editor exposes the 56-byte unknown player payload as
-hex for research but deliberately refuses to rewrite it. This is a preservation
-rule, not a UI limitation: writing guessed bits would risk corrupting unrelated
-player fields.
+## Next work
 
-The save backend also discovers the game's explicit `player_id -> player_index`
-mapping and uses it to resolve roster IDs to generated-name records.
+- Runtime validation of stock edits before advertising production-safe writers.
+- Confirm channel labels and add direct batting/defensive lineup controls.
+- Player reassignment, undo/redo, dirty-state tracking, and field validation/enums.
+- Improved RefPack compression.
+- Expanded profiles only after a patched runtime/serializer is validated.
 
-### Writable .sav fields now
-
-- team key/name/abbreviation/city/nickname
-- 30 roster-slot role DWORDs
-- three starting-pitcher indexes
-- generated first and last names
-- existing roster player IDs are preserved
-
-### Pending .sav fields
-
-The 56-byte packed general-attribute payload is not yet field-complete. Current
-research shows strong statistical correlations (for example jersey number is
-concentrated around payload bits 50..55), but it is not safe to call those
-individual bit ranges proven because neighboring fields/transformations affect
-the observed values. Unknown bits remain untouched until controlled evidence or
-a complete packing model exists.
+Executable hypotheses, accepted CAP removal, required assets and an ordered
+experiment plan are in [executable.md](research/executable.md).

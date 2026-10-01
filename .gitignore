@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+inputs/
+extracted/
+outputs/
+*.iso
+*.sav
+SLUS_215*
+DATABASE.BIG
+BASLUS-*.zip

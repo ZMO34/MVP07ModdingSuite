@@ -9,7 +9,8 @@ payload as unknown/read-only.
 
 ## Evidence convention
 
-- CONFIRMED: exact equality against the stock DAT value across every usable stock row.
+- CONFIRMED: equality against stock DAT values under the explicitly documented
+  sentinel rules; this is binary/correlation evidence, not an in-game edit test.
 - DERIVED: deterministic interpretation built from confirmed packed fields.
 - STRONG INFERENCE: structure fits the binary and shared-engine UI, but stock data
   lacks enough variation to prove the user-facing label/transform.
@@ -17,7 +18,10 @@ payload as unknown/read-only.
 
 ## General player records
 
-The save has 3,826 fixed 84-byte player records.
+The analyzed save has 4,035 serialized 84-byte player records, of which 3,826
+are populated. The remaining 209 are zero, and executable allocated capacity is
+also 4,035. The editor currently exposes the populated range only.
+See [executable.md](executable.md) for executable addresses and expansion limits.
 
 Physical layout:
 
@@ -86,8 +90,10 @@ little-endian bit numbering.
 | boneprofile | 224 | 5 |
 | facemorphindex | 232 | 4 |
 
-The save clamps negative stock bunting sentinel values to zero. For nonnegative
-stock values the packed bunting nibble matches attrib.dat exactly.
+The save stores all 22 negative stock bunting sentinel values as zero (14 at
+`-1`, 8 at `-2`). For nonnegative stock values the packed bunting nibble matches
+attrib.dat exactly. The static comparison establishes the stored result, not
+the complete runtime clamping algorithm.
 
 ### Appearance interpretation
 
@@ -131,24 +137,66 @@ morph index.
 - attrib.dat hidden is 0 for every stock player and cannot be isolated.
 - bits 128..159 contain a stock constant whose semantics are not yet named.
 
-## Batting tables
+## Batting tables: executable-backed corrected framing
 
-Two 16-byte arrays indexed by player-record index:
-- vs LHP: `0x7F003`
-- vs RHP: `0x8EC37`
+Two 16-byte arrays indexed by general-player row:
 
-Confirmed writable fields:
-- contact 32:7
-- power 39:7
-- 9-zone hit tendencies 46..63, 2 bits each
-- chase/take/miss tendencies 64..99, 4 bits each
-- LF pct 100:6
-- CF pct 107:5
-- RF pct 114:6
-- HR pct 121:4
+| Side | Physical first record | Full serialized rows | Populated rows |
+|---|---:|---:|---:|
+| vs LHP | **`0x7F007`** | 4035 | 3826 |
+| vs RHP | **`0x8EC3B`** | 4035 | 3826 |
 
-The low 32 bits are almost certainly the 9-zone hot/cold map plus control bits;
-their exact 9-cell packing is the next batting target.
+The previous anchors `0x7F003` / `0x8EC37` point to four-byte table ID/hash
+headers, both `0xF58F3C1B` in this sample. They are not physical record bases.
+The old field offsets were 32 bits too large, compensating for those early
+anchors for known fields but hiding the final FB/LD/GB word behind the next slice.
+General serializer `0x1BE270`, batting serializer `0x1BEF48` and generic header
+serializer `0x1A14F8` independently confirm framing and full-array transfer.
+
+All seven percentage fields have width **7**. Earlier LF/CF/RF/HR widths
+6/5/6/4 reflected stock maxima, not true field boundaries. Default CF=34 is a
+counterexample to width 5. Runtime getter `0x1BE458` and handlers
+`0x1BE694..0x1BE738` establish the seven-bit percentage packing. See
+[executable.md](executable.md) for individual addresses and fingerprints.
+
+Offsets below are relative to the corrected physical record base. Each of these
+27 fields matches all 3801 Default/stock rows in both batting tables exactly.
+
+| Field | Bit | Width |
+|---|---:|---:|
+| `lrattrib_contact` | 0 | 7 |
+| `lrattrib_power` | 7 | 7 |
+| `lrattrib_hit_ul` | 14 | 2 |
+| `lrattrib_hit_cl` | 16 | 2 |
+| `lrattrib_hit_ll` | 18 | 2 |
+| `lrattrib_hit_um` | 20 | 2 |
+| `lrattrib_hit_cm` | 22 | 2 |
+| `lrattrib_hit_lm` | 24 | 2 |
+| `lrattrib_hit_ur` | 26 | 2 |
+| `lrattrib_hit_cr` | 28 | 2 |
+| `lrattrib_hit_lr` | 30 | 2 |
+| `lrattrib_chasefb` | 32 | 4 |
+| `lrattrib_chaseslowbreak` | 36 | 4 |
+| `lrattrib_chasehardbreak` | 40 | 4 |
+| `lrattrib_takefb` | 44 | 4 |
+| `lrattrib_takeslowbreak` | 48 | 4 |
+| `lrattrib_takehardbreak` | 52 | 4 |
+| `lrattrib_missfb` | 56 | 4 |
+| `lrattrib_missslowbreak` | 60 | 4 |
+| `lrattrib_misshardbreak` | 64 | 4 |
+| `lrattrib_lf_pct` | 68 | 7 |
+| `lrattrib_cf_pct` | 75 | 7 |
+| `lrattrib_rf_pct` | 82 | 7 |
+| `lrattrib_hr_pct` | 89 | 7 |
+| `lrattrib_fb_pct` | 96 | 7 |
+| `lrattrib_ld_pct` | 103 | 7 |
+| `lrattrib_gb_pct` | 110 | 7 |
+
+FB/LD/GB percentages are present and writable at 96/103/110. Earlier claims
+that they were derived/absent or that the low DWORD was an unmapped hot/cold map
+are superseded. Bits 117..127 remain unnamed and preserved. The 209 surplus
+records after populated index 3825 are zero in both full arrays in this sample.
+The GUI now exposes all 27 mapped fields; edited files remain untested in-game.
 
 ## Pitcher table
 
@@ -157,7 +205,9 @@ The save equivalent of `pitcher.dat` is CONFIRMED.
 Base: `0xF22E3`
 Record size: 20 bytes / 160 bits
 Stock rows: 1609 (Default + 1608 stock pitcher rows)
-Total capacity: 1634 rows = 1609 stock + 25 CAP reserve
+Populated rows in this save profile: 1634 = 1609 stock + 25 CAP reserve.
+The full serialized array and executable capacity are 1650; its last 16 rows
+are zero in this sample.
 
 The save also contains an explicit player-ID -> pitcher-index table. The 25 CAP
 player IDs map to pitcher rows 1609..1633, proving that each of the 25 CAP slots
@@ -200,12 +250,15 @@ Stock fastball movement and fastball description are zero in every NCAA
 pitcher.dat row and are not independently represented by an identifiable
 varying field. The writer therefore rejects attempts to set either to nonzero.
 
-This layout reproduces every mapped pitcher.dat value for all 1,609 stock rows
-with zero mismatches.
+This layout reproduces every mapped numeric pitcher.dat value for all 1,609
+stock rows. In 1,152 rows with pitch5_type 15, the four absent fifth-pitch
+parameters are `-` in the DAT and zero in the packed save. Treat that documented
+sentinel serialization separately from literal numeric equality.
 
 ## Roster lineup semantics
 
-The two lineup channels in each roster-slot role DWORD are now named:
+The editor uses the user's description of default/secondary screens to name
+the two lineup channels:
 - channel A = default / vs RHP
 - channel B = secondary / vs LHP
 
@@ -217,3 +270,8 @@ Thus:
 
 Pitching rotation remains the separate three roster-slot indexes stored in the
 team record.
+
+Executable getters/setters independently confirm the low/high nibbles and
+decimal tens/ones packing. They have not yet proved which selector corresponds
+to pitcher hand. Confirm these UI aliases with unequal-channel controlled saves
+before relying on them for automated lineup rewriting. See [executable.md](executable.md).

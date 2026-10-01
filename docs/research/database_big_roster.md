@@ -1,390 +1,172 @@
-# DATABASE.BIG / roster.bin reverse-engineering notes
-
-Date: 2026-10-01
-
-## Source artifact
-
-Analyzed user-supplied `DATABASE.BIG`.
-
-- Archive magic: `BIGF`
-- Archive byte length: `518251` (`0x7E86B`)
-- File count: `10`
-- Header/table declared length: `217` bytes
-- Data begins at offset `220` (`0xDC`), with 4-byte alignment after the directory.
-
-BIGF directory details:
-- bytes 0x04..0x07: archive size, little-endian
-- bytes 0x08..0x0B: file count, big-endian
-- bytes 0x0C..0x0F: directory/header length, big-endian
-- each entry: big-endian u32 offset + big-endian u32 size + NUL-terminated filename
-
-## Archive directory
-
-| File | Offset | Hex | Compressed size | Decompressed size |
-|---|---:|---:|---:|---:|
-| location.dat | 220 | 0xDC | 1470 | 3272 |
-| conf.dat | 1692 | 0x69C | 563 | 1235 |
-| team.dat | 2256 | 0x8D0 | 3 | n/a (plain `;\r\n`) |
-| tstat.dat | 2260 | 0x8D4 | 2281 | 7068 |
-| default.dat | 4544 | 0x11C0 | 174 | 504 |
-| roster.bin | 4720 | 0x1270 | 35964 | 104915 |
-| pitcher.dat | 40684 | 0x9EEC | 71115 | 275980 |
-| rhattrib.dat | 111800 | 0x1B4B8 | 101744 | 642883 |
-| lhattrib.dat | 213544 | 0x34228 | 102908 | 643126 |
-| attrib.dat | 316452 | 0x4D424 | 201799 | 1023951 |
-
-## Critical discovery: RefPack/QFS
-
-**CONFIRMED:** `roster.bin` and every populated database `.dat` member are EA
-RefPack/QFS compressed, not custom 7-bit or non-byte-aligned data.
-
-Observed header for `roster.bin`:
-- `10 FB`: RefPack signature/flags
-- `01 99 D3`: 24-bit big-endian uncompressed length = `104915`
-- compressed command stream begins immediately after the 5-byte header
-
-The apparently fragmented strings seen in the compressed bytes were RefPack
-literal data separated by LZ-style back-reference commands.
-
-The RefPack decoder is implemented in `tools/refpack.py`.
-
-## Decompressed companion DAT files
-
-**CONFIRMED:** `attrib.dat`, `rhattrib.dat`, `lhattrib.dat`, `pitcher.dat`,
-`location.dat`, `conf.dat`, `tstat.dat`, and `default.dat` decompress to
-plain text database tables.
-
-Examples:
-- `attrib.dat` schema exposes jersey number, bats/throws, primary/secondary
-  position, height, weight, year, appearance, speed, fielding, arm ratings,
-  batting stance, scholarship, attitude, academics, etc.
-- `pitcher.dat` exposes stamina, pickoff and individual pitch attributes.
-- `rhattrib.dat` / `lhattrib.dat` expose batting attributes and tendencies.
-- Row keys are 9-character hexadecimal IDs whose numeric value fits in u32.
-
-This means the player ID in `roster.bin` can be joined directly to the player
-rows in the four attribute tables.
-
-## Decompressed roster.bin layout
-
-**CONFIRMED:** decompressed size is exactly `104915` bytes.
-
-The structure is:
-
-```
-0x00000 .. 0x001EA   491-byte global/header region
-0x001EB .. EOF       152 team records * 687 bytes
-```
-
-Proof:
-
-```
-491 + (152 * 687) = 104915
-```
-
-There is no unexplained tail.
-
-EA's own product information states the game contains 152 playable teams, which
-matches the record count exactly.
-
-### Team record: 687 bytes
-
-Offsets below are relative to the start of each team record.
-
-| Offset | Size | Meaning | Status |
-|---:|---:|---|---|
-| 0x000 | 8 | internal team key, NUL padded | CONFIRMED |
-| 0x008 | 48 | full school/team name, NUL padded | CONFIRMED |
-| 0x038 | 16 | abbreviation, NUL padded | CONFIRMED |
-| 0x048 | 40 | city, NUL padded | CONFIRMED |
-| 0x070 | 32 | nickname/mascot, NUL padded | CONFIRMED |
-| 0x090 | 48 | team metadata, not fully mapped | UNKNOWN |
-| 0x0C0 | 4 | roster count (little-endian u32), always 25 | CONFIRMED |
-| 0x0C4 | 200 | 25 roster slots * 8 bytes | CONFIRMED |
-| 0x18C | 3 | roster-slot indexes of the three starting pitchers | CONFIRMED |
-| 0x18F | 1 | zero/padding | CONFIRMED |
-| 0x190 | 287 | zero-filled reserved region in all 152 stock records | CONFIRMED |
-
-Example record 0:
-- internal key: `ArizSt`
-- full name: `Arizona State`
-- abbreviation: `ASU`
-- city: `Tempe`
-- nickname: `Sun Devils`
-
-Record 1:
-- `ArkSt`
-- `Arkansas State`
-- `ASU`
-- `Jonesboro`
-- `Indians`
-
-### Roster slot: 8 bytes
-
-At team-relative `0x0C4 + slot*8`:
-
-| Offset in slot | Size | Meaning | Status |
-|---:|---:|---|---|
-| +0x0 | 4 | player database ID, little-endian u32 | CONFIRMED |
-| +0x4 | 4 | roster/lineup/role flags | PARTIALLY MAPPED |
-
-All 3,800 stock roster slots (`152*25`) use IDs found in `attrib.dat`.
-The same IDs join to the left/right batting tables; pitcher IDs also join to
-`pitcher.dat`.
-
-Arizona State example: slot 0 contains bytes `38 D5 86 C1`, interpreted
-little-endian as player ID `0xC186D538`, which exists in `attrib.dat`.
-
-### Starting rotation indexes
-
-Bytes `0x18C`, `0x18D`, and `0x18E` are each values from 0..24 and index
-the team's 25 roster slots.
-
-**CONFIRMED:** for every one of the 152 teams, all three indexed players have
-`playerattrib_primaryposition = 0`. There are exactly three such players per
-team (456 total), so these bytes encode the game's three-man college starting
-rotation. Byte `0x18F` is zero in every stock record.
-
-### Roster-slot flags (+4)
-
-The second u32 in each 8-byte roster slot is clearly structured and correlates
-with player role/position, but its exact bit/nibble meanings are not fully
-decoded yet.
-
-Strong observations:
-- primary-position 0 players (the three starters) commonly use `0x00008011`
-- other pitcher-role records (primary position 10) commonly use
-  `0x00010000`, `0x00018000`, or `0x00028000`
-- position-player values include patterned values such as `0x2C33`,
-  `0x0B88`, `0x2155`, `0x5866`, `0x6322`, etc.
-- zero is common for bench/non-lineup players
-
-Current interpretation: this u32 stores lineup/defensive/role assignment rather
-than player identity. Preserve it losslessly until each subfield is proven.
-
-## Remaining unknown team metadata
-
-Team-relative bytes `0x090..0x0BF` (48 bytes) vary by team and contain compact
-metadata. They likely include one or more IDs/assets/conference/uniform/stadium
-references. These fields are the next static-mapping target.
-
-## Header/global region
-
-The first 491 decompressed bytes precede team record 0. Its purpose is not yet
-fully mapped. It includes structured binary values plus a large zero-filled
-area. It must be preserved byte-for-byte until understood.
-
-## Tooling / implementation rules
-
-1. Extract the BIG archive losslessly.
-2. RefPack-decompress members before interpreting them.
-3. Never edit compressed offsets directly.
-4. Join roster player IDs to DAT rows using the numeric hex row key.
-5. Preserve unknown metadata/flags and the 491-byte global region.
-6. When writing later, rebuild the decompressed structure, RefPack-compress it,
-   then rebuild `DATABASE.BIG` with correct offsets/alignment.
-7. Recompression does not need to reproduce the original compressed byte stream;
-   it must only produce valid RefPack that decompresses identically.
-
-## Evidence levels
-
-- **CONFIRMED**: directly demonstrated by deterministic decoding/cross-file joins.
-- **PARTIALLY MAPPED**: structure is known but individual subfields are incomplete.
-- **UNKNOWN**: preserve as opaque bytes.
-
-## Next targets
-
-1. Decode team metadata at `0x090..0x0BF`.
-2. Decode the roster-slot role/lineup u32 at slot offset +4.
-3. Map primary/secondary position enum values.
-4. Determine the 491-byte global header.
-5. Add RefPack compression and BIGF rebuild support after the read path is fully
-   validated.
-
-
-## 2026-10-01 additional static findings
-
-### Team metadata: repeated 9-bit asset ID
-
-**CONFIRMED:** team-relative bytes `0x0A4..0x0A7` are a packed little-endian
-u32 containing three repeated copies of the same 9-bit team asset ID:
-
-- bits 1..9: asset ID copy 1
-- bits 10..18: asset ID copy 2
-- bits 19..27: asset ID copy 3
-- bit 0: separate flag (set only for BYU in the stock database)
-- bits 28..30: separate 3-bit value in the range 1..7
-- bit 31: zero in all stock records
-
-The three 9-bit copies agree for every team.
-
-Asset-ID sequence:
-- roster records 1..49 encode IDs 1..49
-- roster record 50 encodes ID 51
-- subsequent records continue through ID 153
-
-Therefore asset ID 50 is deliberately reserved/skipped. The meanings of bit 0
-and bits 28..30 remain unknown and must not yet be labeled in the GUI.
-
-### Roster-slot role flags: common starting-lineup patterns
-
-**PARTIALLY MAPPED:** for ordinary starting position players, the low byte often
-contains two identical nibbles equal to `primary_position + 1`:
-
-- position 1 -> `0x22`
-- position 2 -> `0x33`
-- ...
-- position 9 -> `0xAA`
-
-The next byte commonly takes one of nine values:
-
-`0x0B, 0x16, 0x21, 0x2C, 0x37, 0x42, 0x4D, 0x58, 0x63`
-
-These map empirically to batting-order slots 1..9 respectively. Examples include
-`0x0B88`, `0x2C33`, `0x5866`, and `0x6322`.
-
-Not every starter uses the simple form; several teams contain alternate values
-such as `0x1403`, `0x230`, `0x4603`, etc. This strongly suggests the u32
-contains multiple lineup/role assignments (likely split/platoon configurations)
-rather than one simple position+order pair. The GUI may display the simple
-inference but must preserve the complete raw u32.
-
-### Global prefix
-
-The 491-byte prefix is almost entirely zero. Only the first four bytes are
-non-zero: little-endian u32 `153`. This matches the maximum encoded team asset
-ID (153) and is consistent with an ID-space/count sentinel, but the exact
-semantics are still not proven.
-
-### First GUI/editor implementation
-
-A first GUI implementation now lives under `src/mvp07_modding_suite/`.
-
-It can:
-- open the original `DATABASE.BIG`
-- browse 152 teams and 25-player rosters
-- join player IDs to the four attribute tables
-- edit confirmed team strings and selected player attributes
-- show raw role flags plus safe batting-order inference
-- rebuild the BIG archive and verify that the rebuilt file can be parsed again
-
-The current writer uses literal-only valid RefPack streams. This is structurally
-verified but still requires an ISO/game runtime test before being considered
-production-safe.
-
-
-### Team metadata: location, conference, and division
-
-**CONFIRMED:** the beginning of the packed metadata word at team-relative
-`0x0A0` contains three fields:
-
-- bits 0..5: `location.dat` ID (1..49 observed)
-- bits 6..10: `conf.dat` ID (1..16 observed)
-- bit 11: conference-division selector
-
-The 6-bit location values match known school states/locations and the IDs in
-`location.dat`.
-
-The 5-bit conference values match the 16 rows in `conf.dat`.
-
-Bit 11 is set exactly for teams assigned to the second named division in the
-three conferences whose `conf_divisionnum` is 2:
-
-- ACC: Atlantic (Boston College, Clemson, Florida State, Maryland, NC State,
-  Wake Forest)
-- SEC: West (Alabama, Arkansas, Auburn, LSU, Mississippi State, Ole Miss)
-- WCC: West (Pepperdine, Portland, San Francisco, Santa Clara)
-
-It is clear for the other teams.
-
-Immediately after this selector, bits 12..20 hold another copy of the same 9-bit
-team asset ID described below. Therefore the team asset ID actually appears
-**four times** in the packed metadata block: at metadata bit offsets 140, 161,
-170, and 179.
-
-
-## 2026-10-01 lineup-role DWORD solved further
-
-The three roster-management screens correspond directly to stored roster data:
-
-1. **Pitching Rotation** — three explicit roster-slot indexes stored per team.
-2. **Batting Order** — encoded inside each roster slot's role DWORD.
-3. **Defensive Alignment** — encoded inside the same role DWORD.
-
-### Exact role-DWORD decomposition
-
-For each 8-byte roster slot, the second u32 can now be decomposed as:
-
-```
-bits  0..3   defensive-alignment channel A (0=unused, 1..10 position code)
-bits  4..7   defensive-alignment channel B (0=unused, 1..10 position code)
-bits  8..14  batting-order pair as a decimal two-digit integer
-bit      15  separate pitching/role flag
-bits 16..17  additional pitching/role flags
-bits 18..31  zero in stock data observed so far
-```
-
-The batting-order field is especially unusual but deterministic. The 7-bit value
-is interpreted as a normal decimal integer whose tens and ones digits are the
-two lineup channels:
-
-- 11 => order 1 in both channels
-- 22 => order 2 in both channels
-- 44 => order 4 in both channels
-- 60 => order 6 in channel A and unused in B
-- 06 => unused in A and order 6 in B
-- 99 => order 9 in both channels
-
-This explains stock values that previously looked like arbitrary hexadecimal
-patterns. For example:
-
-- `0x00002C33`: high role byte `0x2C = 44 decimal`, so batting order 4/4;
-  low nibbles `3/3`, so the same defensive position in both channels.
-- `0x00004D44`: `0x4D = 77 decimal`, so batting order 7/7; defense 4/4.
-- `0x00003C0A`: masked batting value is 60 decimal, so order 6/0; defensive
-  nibbles are 10/0, matching a DH-only assignment in one lineup channel.
-
-All stock defensive nibbles are in the range 0..10 and all masked batting values
-are in the range 0..99. This holds across all 3,800 stock roster slots.
-
-The two channels are definitely distinct lineup/alignment channels, but the UI
-labels for the two channels (for example vs LHP/vs RHP, DH/non-DH, or another
-game-specific distinction) are not yet proven from static data alone.
-
-### Pitching-role upper bits
-
-After removing bits 0..14, stock role values fall into five buckets:
-
-- `0x00000`: ordinary position-player / bench role
-- `0x08000`: **starting pitcher** — exactly all 456 primary-position-0 players
-- `0x10000`: relief bucket A
-- `0x18000`: relief bucket B
-- `0x28000`: **closer** — one per team for 147 teams and two for five teams;
-  these pitchers also have materially stronger average pitch-control ratings
-
-The exact in-game labels for relief buckets A and B remain unproven. Static
-evidence suggests `0x10000` is the higher-stamina/long-relief group and
-`0x18000` is the ordinary/middle-relief group.
-
-### Team metadata structure narrowed further
-
-Only bytes `0x090..0x0AF` of the 48-byte metadata region are non-zero in stock
-records. Bytes `0x0B0..0x0BF` are zero for all 152 teams.
-
-Additional observations:
-
-- `0x0A8..0x0AB` is a single 9-bit ID (52 unique values).
-- `0x0AC..0x0AF` is exactly two packed 9-bit IDs:
-  - bits 0..8: 17 unique values
-  - bits 9..17: 21 unique values
-  - bits 18..31: zero
-
-This three-ID pattern is consistent with presentation/audio/color references.
-It is not yet safe to assign final field names. The pair of 9-bit values at
-`0x0AC` is a strong candidate for two presentation/color palette references,
-while the 9-bit value at `0x0A8` is a strong candidate for a shared presentation
-or audio-bank reference.
-
-The u32 at `0x090` is much more team-specific (141 unique values for 152 teams)
-and is the strongest current candidate for a team-specific announcer/stadium
-presentation call ID or hash. This remains a hypothesis, not a confirmed label.
+# DATABASE.BIG / roster.bin format
+
+Updated 2026-10-01 with executable-backed corrections. Applies to the supplied
+stock database; expanded databases are not implemented. Executable addresses,
+limits, evidence levels and reproduction commands are in [executable.md](executable.md).
+
+## Archive
+
+`DATABASE.BIG` is 518,251 bytes (`0x7E86B`), SHA-256
+`35f93770a501c47b85e9e8add380aa603adbdf9eb59e807fbdb30ba0b8f0d252`.
+It has BIGF magic, ten members, a 217-byte directory/header, and aligned data
+starting at byte 220 (`0xDC`).
+
+| Directory field | Encoding |
+|---|---|
+| bytes 4..7, archive length | little-endian u32 |
+| bytes 8..11, member count | big-endian u32 |
+| bytes 12..15, directory/header length | big-endian u32 |
+| member entry | big-endian u32 offset, big-endian u32 size, NUL-terminated name |
+
+| File | Offset | Compressed bytes | Decoded bytes |
+|---|---:|---:|---:|
+| location.dat | `0xDC` | 1470 | 3272 |
+| conf.dat | `0x69C` | 563 | 1235 |
+| team.dat | `0x8D0` | 3 | plain `;\r\n` |
+| tstat.dat | `0x8D4` | 2281 | 7068 |
+| default.dat | `0x11C0` | 174 | 504 |
+| roster.bin | `0x1270` | 35964 | 104915 |
+| pitcher.dat | `0x9EEC` | 71115 | 275980 |
+| rhattrib.dat | `0x1B4B8` | 101744 | 642883 |
+| lhattrib.dat | `0x34228` | 102908 | 643126 |
+| attrib.dat | `0x4D424` | 201799 | 1023951 |
+
+Populated members use EA RefPack/QFS. `roster.bin` begins `10 FB 01 99 D3`:
+RefPack signature followed by 24-bit big-endian uncompressed length 104915.
+Fragmented strings in compressed data were literals interrupted by backrefs,
+not a non-byte-aligned custom format. `tools/refpack.py` decodes these streams;
+`tools/extract_big.py` extracts original members without interpretation.
+
+The decoded DATs are text schema/data tables. Nine-character hex row keys fit
+in u32 and join numeric roster player IDs to general, LH/RH batting and pitcher
+rows. `attrib.dat` has a default plus 3800 roster-player rows; `pitcher.dat` has
+1609 stock rows. `team.dat` is empty, so adding text rows there alone does not
+add the binary team records. Conference records live in `conf.dat` (16 rows).
+
+## Top-level roster framing: confirmed
+
+| Offset | Bytes | Meaning |
+|---:|---:|---|
+| `0x000` | 4 | little-endian total serialized team-record count, 153 |
+| `0x004` | 487 | empty sentinel team record, roster count zero |
+| `0x1EB` | `152*687` | 152 playable team records, 25 slots each |
+
+`4 + 487 + 152*687 = 104915`, with no unexplained tail. The previous description
+of the first 491 bytes as an unknown "global region" is superseded: the team
+serializer at `0x6B19D0` and table serializer at `0x6B1CC0` establish count and
+sentinel framing. Preserve both; current stock parsers still treat them together
+as a 491-byte prefix. Table record 0 is the sentinel; editor/playable index 0
+is Arizona State, table record 1.
+
+## Serialized playable team record: 687 bytes
+
+| Offset | Bytes | Meaning / evidence |
+|---:|---:|---|
+| `0x000` | 8 | internal team key |
+| `0x008` | 48 | full school/team name |
+| `0x038` | 16 | abbreviation |
+| `0x048` | 40 | city |
+| `0x070` | 32 | nickname |
+| `0x090` | 48 | packed metadata, partially mapped |
+| `0x0C0` | 4 | little-endian slot count, 25 in all playable stock records |
+| `0x0C4` | 200 | 25 slots ×8 bytes |
+| `0x18C` | 3 | three starting-pitcher slot indexes |
+| `0x18F` | 288 | custom-ballpark-associated block; zero in stock sample |
+
+The last block starts at `0x18F`; there is no separately serialized padding
+byte there. Runtime layout differs and has one omitted padding byte before the
+block. The tail's subsystem association is proven through team accessors and
+custom-ballpark initialization/debug strings; every byte's meaning is not mapped.
+Do not use it as free roster storage. See the complete runtime/serialized map
+in [executable.md](executable.md).
+
+Strings are fixed buffers containing NUL-terminated Latin-1/ASCII values.
+Bytes after the terminator need not be zero in runtime saves. Writers clear
+only an edited string buffer; untouched content is preserved.
+
+Examples: playable index 0 = `ArizSt / Arizona State / ASU / Tempe / Sun Devils`;
+index 1 = `ArkSt / Arkansas State / ASU / Jonesboro / Indians`.
+
+## Roster slots and lineup roles
+
+Each slot at `0x0C4 + 8*s` contains a little-endian u32 player ID and a role
+DWORD. All 3800 stock slots join `attrib.dat`, `lhattrib.dat` and `rhattrib.dat`;
+pitchers additionally join `pitcher.dat`. Arizona State slot 0 has ID
+`0xC186D538` (bytes `38 D5 86 C1`), DAT row index 526.
+
+The three bytes at `0x18C..0x18E` are slot indexes 0..24. Across all 152 teams,
+the three referenced players have primary position 0, 456 starters total.
+Executable rotation setters additionally establish the three-index design.
+
+| Role bits | Meaning | Status |
+|---|---|---|
+| 0..3 | defense channel/selector 0 | confirmed getter/setter |
+| 4..7 | defense channel/selector 1 | confirmed getter/setter |
+| 8..14 | batting order: decimal tens/ones pair | confirmed getter/setter; selector 0 tens, 1 ones |
+| 15..17 | pitching-role value | confirmed width/accessor; some labels unresolved |
+| 18..20 | additional field | confirmed width/accessor; semantics unresolved |
+| 21..31 | remaining bits | incompletely mapped; preserve |
+
+Examples: `0x2C33` means batting pair 44 (4/4), defense 3/3; `0x4D44`
+means 77 (7/7), defense 4/4; `0x3C0A` means 60 (6/0), defense 10/0.
+All stock defensive nibbles are 0..10 and batting pairs 0..99. Different channels
+explain values that the earlier equal-digit heuristic could not decode.
+
+The user describes default and secondary lineups as vs RHP/vs LHP. The stored
+channels are proven, but mapping engine selector numbers to pitcher hand still
+needs a controlled unequal-channel comparison. Do not infer it from equal values.
+
+Stock upper-role buckets: 0 ordinary/bench; `0x8000` starters (all 456);
+`0x10000` and `0x18000` relief groups; `0x28000` likely closer (one/team in 147
+teams, two in five). Relief labels and closer interpretation are correlations,
+not completed UI-diff proof. Bits 18..20 being zero in stock does not mean unused.
+The earlier stamina comparison suggests `0x10000` may represent long relief and
+`0x18000` middle relief; retain these as candidate labels until controlled tests.
+
+## Packed team metadata
+
+These fields are at serialized offsets and are independently consistent with
+DAT rows. The executable accessors confirm the location/conference/division widths.
+
+| Word / bits | Interpretation | Status |
+|---|---|---|
+| `+0xA0`, 0..5 | location ID, 1..49 observed | confirmed |
+| `+0xA0`, 6..10 | conference ID, 1..16 observed | confirmed |
+| `+0xA0`, 11 | conference division selector | confirmed |
+| `+0xA0`, 12..20 | nine-bit reference matching primary art ID in stock | value correlation confirmed; separate consumer semantics incomplete |
+| `+0xA0`, 21..29 | another nine-bit reference | getter identified; final meaning unresolved |
+| `+0xA4`, 1..9 | primary team art ID used by logo formatting | confirmed |
+| `+0xA4`, 10..18 and 19..27 | two further art/reference IDs, matching first in stock | values/getters confirmed; consumer distinctions unresolved |
+| `+0xA4`, 0 | flag set only for BYU in sample | unknown meaning |
+| `+0xA4`, 28..30 | value 1..7 | unknown meaning |
+| `+0xA4`, 31 | zero in sample | unknown meaning |
+
+Stock art IDs skip 50 and extend through 153. Do not confuse IDs with the 153
+serialized team records including the sentinel. Nine-bit encodings hold 0..511;
+other consumers have narrower gates and capacities.
+
+Division selector is set for the second named division in ACC (Atlantic), SEC
+(West), and WCC (West); `conf.dat` provides the corresponding labels. Broader
+league changes need schedule/dynasty evidence beyond these fields.
+
+Still-unlabeled correlations worth preserving for future research:
+
+- `+0xA8` is a nine-bit ID, 52 distinct stock values.
+- `+0xAC` holds two nine-bit IDs: 17 distinct low values and 21 high values;
+  bits 18..31 are zero in stock. Audio/presentation/color references are hypotheses.
+- Serialized `+0x090` has 141 distinct values across 152 teams; announcer/stadium
+  hash/reference is a hypothesis. It corresponds to runtime `+0x09C`, not `+0x090`.
+- Serialized bytes `+0xB0..+0xBF` are zero in all stock records; still preserve them.
+
+## Tooling and continuation
+
+Stock read and experimental write paths exist in `src/mvp07_modding_suite/model.py`
+and `documents.py`. CLI parser `tools/parse_roster.py` uses the same stock sizes.
+Preserve unknown bytes and count/sentinel framing, modify decompressed content,
+recompress and rebuild aligned BIGF entries. Compressed bytes need not match the
+original as long as decoded content matches. Literal-only compression is larger
+and has not been validated in-game.
+
+Remaining work: establish edited-file runtime compatibility, confirm lineup hand
+labels and unresolved metadata, inspect graphics/scheduling archives, and build
+explicit expanded profiles after executable/serializer changes are proven.

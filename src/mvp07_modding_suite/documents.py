@@ -16,6 +16,8 @@ from .model import (
 from .memory_save import MemoryRosterSave
 
 
+# Stock serialized count (4 bytes) + empty sentinel team record (487 bytes).
+# Expanded layouts need a separate profile; this is not an opaque global header.
 GLOBAL_HEADER_SIZE = 491
 ISO_TEAM_RECORD_SIZE = 687
 ISO_TEAM_COUNT = 152
@@ -335,8 +337,7 @@ class MemorySaveDocument(RosterDocument):
                 },
             )
 
-        # The 56-byte general player payload remains preservation-only until
-        # its individual bitfields are proven.
+        # Only mapped fields above are rewritten; all other packed bits survive.
 
     def save(self, path: Path) -> None:
         self.save_file.save(path)

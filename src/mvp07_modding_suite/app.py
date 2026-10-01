@@ -77,6 +77,7 @@ BAT_FIELDS = [
     "lrattrib_hit_cl", "lrattrib_hit_cm", "lrattrib_hit_cr",
     "lrattrib_hit_ll", "lrattrib_hit_lm", "lrattrib_hit_lr",
     "lrattrib_lf_pct", "lrattrib_cf_pct", "lrattrib_rf_pct", "lrattrib_hr_pct",
+    "lrattrib_fb_pct", "lrattrib_ld_pct", "lrattrib_gb_pct",
     "lrattrib_chasefb", "lrattrib_chaseslowbreak", "lrattrib_chasehardbreak",
     "lrattrib_takefb", "lrattrib_takeslowbreak", "lrattrib_takehardbreak",
     "lrattrib_missfb", "lrattrib_missslowbreak", "lrattrib_misshardbreak",

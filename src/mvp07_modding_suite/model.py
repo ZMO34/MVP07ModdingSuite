@@ -197,12 +197,12 @@ class RosterSlot:
 
     @property
     def defense_vs_rhp(self) -> int:
-        """Default defensive alignment used versus right-handed pitchers."""
+        """User-described default/vs-RHP alias; engine hand mapping unverified."""
         return self.defense_a
 
     @property
     def defense_vs_lhp(self) -> int:
-        """Secondary defensive alignment used versus left-handed pitchers."""
+        """User-described secondary/vs-LHP alias; engine hand mapping unverified."""
         return self.defense_b
 
     @property
@@ -220,12 +220,12 @@ class RosterSlot:
 
     @property
     def batting_order_vs_rhp(self) -> int:
-        """Default batting order used versus right-handed pitchers."""
+        """User-described default/vs-RHP alias; engine hand mapping unverified."""
         return self.batting_order_a
 
     @property
     def batting_order_vs_lhp(self) -> int:
-        """Secondary batting order used versus left-handed pitchers."""
+        """User-described secondary/vs-LHP alias; engine hand mapping unverified."""
         return self.batting_order_b
 
     @property

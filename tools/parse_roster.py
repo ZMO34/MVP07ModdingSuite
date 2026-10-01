@@ -11,6 +11,7 @@ from pathlib import Path
 from refpack import decompress
 
 
+# Stock count DWORD + empty sentinel record; not an expanded-layout parser.
 GLOBAL_HEADER_SIZE = 491
 TEAM_RECORD_SIZE = 687
 TEAM_COUNT = 152

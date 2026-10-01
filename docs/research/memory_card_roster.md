@@ -1,263 +1,164 @@
-# PS2 memory-card roster save reversing
+# PS2 memory-card roster save
 
-Date: 2026-10-01
+Updated 2026-10-01. Applies to the supplied default roster save after the user's
+reported random-name generation prompt. This is a separate binary serialization
+backend from the compressed text DATs on disc.
 
-Source analyzed: user-supplied default roster save created by MVP 07 after
-accepting the game's random-name generation prompt on boot.
+## Source and evidence
 
-Container ZIP:
-- `BASLUS-21582R659be98.zip`
+ZIP: `BASLUS-21582R659be98.zip`. Roster member:
+`BASLUS-21582R659be98/Rost1.sav`, 1,185,992 bytes, SHA-256
+`34dd9c930dc56eae194729b9b254451c39d721b18863a0336611e57e36415556`.
 
-Roster payload:
-- `Rost1.sav`
-- size: `1,185,992` bytes
-- SHA-256: `34dd9c930dc56eae194729b9b254451c39d721b18863a0336611e57e36415556`
+This save contains runtime team and packed player data, not just a name overlay.
+It independently validates roster IDs, team strings/metadata, roles and rotations.
+The [executable map](executable.md) explains serializers and runtime capacities;
+[save_player_format.md](save_player_format.md) lists individual packed fields.
 
-## Important conclusion
+## Team framing
 
-The memory-card roster is not a small name overlay. It contains a largely
-self-contained runtime roster database. The stock team/roster information is
-copied into the save, while the player names are materialized into fixed-size
-binary player records.
+| File offset | Meaning |
+|---:|---|
+| `0x1DE8` | little-endian total team-record count 153 |
+| `0x1DEC` | sentinel team record, 727 bytes, count 30 |
+| `0x20C3` | first of 152 playable team records |
+| `0x1D06B` | end of playable team block (`0x20C3 + 152*727`) |
 
-This gives us a second serialization of the same logical database and is useful
-for validating the ISO format.
+The save sentinel contains nonzero slot bytes; preserve it. The editor indexes
+only the playable records. It does not regenerate the sentinel or other headers.
 
-## Team block
+### Serialized playable team: 727 bytes
 
-For this save, the first team begins at file offset `0x20C3`.
-
-There are exactly 152 fixed-size save team records:
-
-- record size: **727 bytes**
-- total team block: `152 * 727 = 110,504` bytes
-- team block end: `0x1D06B`
-
-The visible string fields use the same offsets as decompressed `roster.bin`:
-
-| Offset | Size | Meaning |
+| Relative offset | Bytes | Meaning |
 |---:|---:|---|
-| 0x000 | 8 | internal team key |
-| 0x008 | 48 | school/team name |
-| 0x038 | 16 | abbreviation |
-| 0x048 | 40 | city |
-| 0x070 | 32 | nickname |
-| 0x090 | 48 | packed team metadata |
-| 0x0C0 | 4 | roster capacity/count |
-| 0x0C4 | 240 | 30 roster slots * 8 bytes |
-| 0x1B4 | 3 | three starting-pitcher roster indexes |
-| 0x1B7 | 1 | zero/padding |
-| 0x1B8 | 287 | reserved/zero region |
+| `0x000` | 8 | team key |
+| `0x008` | 48 | school/team name |
+| `0x038` | 16 | abbreviation |
+| `0x048` | 40 | city |
+| `0x070` | 32 | nickname |
+| `0x090` | 48 | partially mapped team metadata |
+| `0x0C0` | 4 | serialized roster slot count, 30 |
+| `0x0C4` | 240 | 30 eight-byte roster slots |
+| `0x1B4` | 3 | starting-pitcher slot indexes |
+| `0x1B7` | 288 | custom-ballpark-associated block |
 
-The only structural expansion versus the stock ISO team record is the insertion
-of five additional roster slots:
+There is no separately serialized padding at `0x1B7`; runtime padding is omitted.
+The 30-slot serialized record is 727 bytes; runtime team stride is 728.
+Five extra slots explain the 40-byte increase from the 687-byte stock disc record.
 
-- stock `roster.bin`: 25 slots, 687-byte record
-- memory save: 30 slots, 727-byte record
-- difference: `5 * 8 = 40` bytes
+Across the 152 teams, visible strings, metadata `0x090..0x0BF`, first 25 slots,
+and the three rotation indexes match the supplied disc database. Count changes
+25 ->30; save slots 25..29 are zero in this default sample. This is storage
+capacity, not evidence that the game accepts 30 active players: executable
+validation distinguishes counts >=26.
 
-### Stock-vs-save validation
+## General player records
 
-Across all 152 teams:
+The physical array begins at **`0x2C407`**. Its **3826 populated records ×84 bytes**
+end at **`0x7AB6F`**. The full serialized array has **4035 records**, ending at
+**`0x7F003`**, with 209 zero surplus records. The Default first-name anchor is **`0x2C43F`**,
+56 bytes into record 0. Earlier claims of 4096 name-first records are superseded;
+they would misinterpret following data and overlap known later structures.
 
-- all visible team strings match the ISO database
-- bytes `0x090..0x0BF` (team metadata) match **byte-for-byte**
-- the first 25 roster-slot entries match **byte-for-byte**
-- the three starting-rotation indexes match **byte-for-byte**
-- roster count/capacity changes from 25 to 30
-- save slots 25..29 are zero in this default save
+| Relative offset | Bytes | Meaning |
+|---:|---:|---|
+| `0x00` | 56 | packed general attributes |
+| `0x38` | 12 | first-name buffer |
+| `0x44` | 16 | last-name buffer |
 
-This is strong independent confirmation that our decoded team metadata,
-player-ID joins, lineup/role DWORDs, and rotation indexes are genuine game
-runtime data, not artifacts of our ISO parser.
+Indexes: 0 Default template; 1..3800 stock players in `attrib.dat` row order;
+3801..3825 the 25 created-player reserve entries. Executable initialization
+constructs created-player ID hashes in a 25-iteration loop, and all 25 reserved
+IDs join the matching pitcher reserves. A controlled created-player save is still
+needed to establish their exact lifecycle, activation and deletion behavior.
+Populated count 3826 differs from the **4035 full serialized/allocated capacity**.
+Neither value is proof of a universal 4096/12-bit player-index limit.
 
-## String-copy behavior
+The backend's `player_base` is the **name anchor**, not the physical record base.
+`general_record_base` subtracts 56. `player_record()` is a name-anchored slice
+whose name readers use only the first 28 bytes; use `player_payload()` for
+attributes. Expanded backend work must preserve this distinction or replace it
+with a clearly versioned physical-record API.
 
-The game often overwrites a string without clearing the entire fixed-width
-buffer first.
+Names are materialized into player records while team slots retain the same
+stable player IDs. Example: ID `0xC186D538`, `attrib.dat` row 526, stock placeholder
+`Arizona State / 2`, saved name `Chuck Bourque` at index 526.
 
-Example: a stock first-name field containing `Oregon State` can become:
+Strings may retain old content after their first NUL, e.g. `Keith\0 Stat\0`.
+Read bounded C strings; do not require zero padding. The writer clears only an
+edited name buffer. First-name limit is 11 bytes, last-name limit 15, leaving NUL.
 
-`Keith\0 Stat\0`
+## ID-index mapping
 
-The C-string value is correctly `Keith`, but bytes after the first NUL still
-contain remnants of the old placeholder.
+Mapping entries observed in the pre-player region are triples:
+`[u32 player_id][u32 row_index][u32 same_row_index]`, little-endian.
+Example for `0xC186D538`: `38 D5 86 C1 0E 02 00 00 0E 02 00 00` -> index 526.
 
-Therefore:
-- always parse these fields as NUL-terminated strings within fixed buffers
-- never require padding bytes after the terminator to be zero
-- writers should preferably clear the buffer before writing a new string even
-  though the game itself does not always do so
+The backend scans between the team block and player anchor, restricts candidates
+to roster IDs, and selects a consistent bijective mapping. It resolves all 3800
+rostered IDs in this sample; this is heuristic discovery, not a completely mapped
+hash-table format. Default/CAP IDs are not all exposed by that roster-only map.
+Do not copy its bounds or assumptions unchanged into an expanded save.
 
-## Player array
+For CAP verification, scanning the same pre-player area finds exactly one unique
+ID for each general index 3801..3825. All 25 IDs also map to pitcher indexes
+1609..1633 in corresponding order. This supports a shared reserved-player pool.
 
-The packed player-record array begins at `0x2C43F` in this save.
+## Batting and pitcher arrays
 
-Structure:
+| Table | Physical base offset | Record bytes | Populated/editable rows | Full serialized/allocated rows |
+|---|---:|---:|---:|---:|
+| general | `0x2C407` | 84 | 3826 | 4035 |
+| LH batting | `0x7F007` | 16 | 3826 | 4035 |
+| RH batting | `0x8EC3B` | 16 | 3826 | 4035 |
+| pitcher | `0xF22E3` | 20 | 1634 | 1650 |
 
-- capacity: **4096 records**
-- record size: **84 bytes**
-- total size: `4096 * 84 = 344,064` bytes
-- end offset: `0x8043F`
+Each physical array is preceded by a four-byte table ID/hash header, serialized
+by generic helper `0x1A14F8`. General/LH/RH header value is `0xF58F3C1B`; pitcher
+is `0x19FC5623`. Those are not row counts or the first record. General and batting
+arrays include 209 zero reserve rows each; pitcher includes 16 zero rows.
 
-### Player record
+Earlier batting anchors were four bytes early. The corrected bases reveal
+FB/LD/GB percentages at bits 96/103/110; contact starts at 0. LF/CF/RF/HR
+start at 68/75/82/89, all seven-bit fields, confirmed by executable getters.
+All 27 fields match all 3801 default/stock rows on each side. The old assertion
+that FB/LD/GB were absent or that the low DWORD was a hot/cold map is superseded.
 
-| Offset | Size | Meaning | Status |
-|---:|---:|---|---|
-| 0x00 | 12 | first-name buffer | CONFIRMED |
-| 0x0C | 16 | last-name buffer | CONFIRMED |
-| 0x1C | 56 | packed general player attributes | PARTIALLY MAPPED |
+Batting arrays use general-player indexes. Pitcher arrays have a separate ID-index
+mapping; 1609 stock rows include Default plus 1608 actual stock pitcher rows,
+followed by 25 reserves. The backend scans a bounded region immediately before
+the pitcher array for consistent ID/index triples. These absolute offsets are
+sample-profile values; serializer resizing can move every subsequent region.
 
-Record 0 is the `Default / Default` template.
+Mapped fields reproduce stock DAT values under observed serialization rules:
 
-Records 1..3800 correspond to the 3,800 stock roster players in
-`attrib.dat` row order.
+- All 3800 rostered general records agree for mapped fields except 22 negative
+  bunting sentinels: fourteen `-1` and eight `-2` values are packed as zero.
+  All nonnegative bunting values match.
+- All 27 mapped LH/RH batting fields agree for the 3801 Default/stock rows.
+- All 1609 stock pitcher rows agree for mapped numeric values. Pitch-5 type 15
+  means absent in this sample: its four DAT `-` parameters serialize as zero
+  in 1152 rows. Type/sentinel meaning beyond this sample remains to be tested.
+- Stamina is duplicated at bits 133..139; the writer updates both copies.
 
-The game-generated random names are written directly into these records.
+The player-format note and `memory_save.py` are the bitfield references.
+Unknown bits are preserved. Body-type transform and derived eye-protection UI
+labels still require controlled visual tests; a stock constant cannot prove a label.
 
-Example:
+## Editor behavior and remaining work
 
-- player ID `0xC186D538`
-- ISO `attrib.dat` row index: 526
-- stock placeholder name: `Arizona State / 2`
-- memory-save record 526: `Chuck Bourque`
+The editor can display/edit generated names and mapped general/appearance,
+batting and pitching attributes, team strings, raw role DWORDs and rotations.
+Former blanket read-only packed-attribute notes are obsolete. Unknown data stays
+untouched. ZIP writing preserves other members and file metadata while rebuilding
+the container; byte equality of the ZIP container itself is not required.
 
-The roster team entry continues to reference the same player ID. Therefore the
-name randomization changes player-record content, not team roster identity.
+No-change raw save output is byte-identical in the supplied sample; ZIP member
+contents are preserved. Edited saves are still experimental: no game load/save
+compatibility or checksum update has been established by runtime tests.
 
-### Reserved/generated player records
-
-After the 3,801 stock/template records:
-
-- records 3801..3825 contain 25 additional generated names
-- records 3826..4095 are zero in this save
-
-The exact gameplay purpose of those 25 pre-named reserved records is not yet
-proven. They may be a generated-player/replacement pool. Do not label them as
-created-player slots until tested.
-
-## Player ID -> row index mapping
-
-The save contains explicit mapping entries tying the 32-bit player database ID
-to the packed player-record index.
-
-Example bytes for Arizona State player `0xC186D538`:
-
-```
-38 D5 86 C1  0E 02 00 00  0E 02 00 00
-^^^^^^^^^^^  ^^^^^^^^^^^  ^^^^^^^^^^^
-player ID      526 LE       526 LE
-```
-
-This exactly matches `attrib.dat` row index 526.
-
-This provides a deterministic bridge between:
-- team roster player IDs
-- ISO DAT rows
-- memory-save packed player records
-
-## Consequences for the editor
-
-The GUI can now safely support:
-1. importing random names from a PS2/PCSX2 roster save into the ISO database
-2. identifying players by stable ID while displaying the save's generated names
-3. future direct memory-card roster editing without reusing the ISO serializer
-
-The memory-card save format should remain a separate backend from the
-`DATABASE.BIG` backend because its player structures are packed binary records,
-not the RefPack-compressed text DAT tables used on disc.
-
-## Next reversing targets
-
-1. Decode the 56-byte packed general-attribute payload in each 84-byte save
-   player record by correlating all 3,800 known stock DAT rows.
-2. Identify the save arrays corresponding to right-hand batting, left-hand
-   batting, and pitching attributes.
-3. Determine the exact ID-index table boundaries and hash/index organization.
-4. Compare a save after a controlled lineup/position edit to isolate the complex
-   roster-role DWORD subfields.
-5. Compare a save after a single rating edit to map packed attribute bits.
-
-
-## 2026-10-01 batting tables and create-a-player capacity
-
-### Left/right batting save arrays
-
-Two complete fixed-size batting arrays are present in the memory-card save.
-
-For SLUS-21582:
-
-- vs LHP / `lhattrib` array begins at `0x7F003`
-- vs RHP / `rhattrib` array begins at `0x8EC37`
-- record size: **16 bytes**
-- record indexing matches the save player index
-
-These arrays reproduce the ISO `lhattrib.dat` and `rhattrib.dat` data
-directly for the stock players.
-
-Confirmed writable bitfields inside each 128-bit batting record:
-
-| Field | Bit | Width |
-|---|---:|---:|
-| contact | 32 | 7 |
-| power | 39 | 7 |
-| hit UL | 46 | 2 |
-| hit CL | 48 | 2 |
-| hit LL | 50 | 2 |
-| hit UM | 52 | 2 |
-| hit CM | 54 | 2 |
-| hit LM | 56 | 2 |
-| hit UR | 58 | 2 |
-| hit CR | 60 | 2 |
-| hit LR | 62 | 2 |
-| chase FB | 64 | 4 |
-| chase slow break | 68 | 4 |
-| chase hard break | 72 | 4 |
-| take FB | 76 | 4 |
-| take slow break | 80 | 4 |
-| take hard break | 84 | 4 |
-| miss FB | 88 | 4 |
-| miss slow break | 92 | 4 |
-| miss hard break | 96 | 4 |
-| LF pct | 100 | 6 |
-| CF pct | 107 | 5 |
-| RF pct | 114 | 6 |
-| HR pct | 121 | 4 |
-
-The DAT fields `fb_pct`, `ld_pct`, and `gb_pct` are not independently
-present in these 16-byte records; the remaining high bits are zero in the stock
-save. Those three values are likely derived or stored elsewhere.
-
-The unified GUI now reads and writes the confirmed batting fields directly in
-`.sav` files while preserving every unrelated bit.
-
-### Create-a-player pool
-
-The save contains exactly 25 extra populated-name player records after the
-Default template plus 3,800 stock players:
-
-```
-record 0          Default template
-records 1..3800   stock players
-records 3801..3825 additional player slots
-```
-
-The user independently confirmed that Create-a-Player data is memory-card
-resident and has a hard upper limit. Combined with the exact 25-record reserve,
-the strongest interpretation is that **records 3801..3825 are the 25
-Create-a-Player slots**.
-
-Until a save with at least one explicitly created player is compared, mark the
-25-slot CAP interpretation as **HIGH CONFIDENCE / not yet byte-diff confirmed**.
-
-### Roster-management structures
-
-The memory-card team records preserve the same role DWORD as the ISO and add
-five empty roster slots. The role DWORD has now been decomposed into two batting
-order channels, two defensive-alignment channels, and pitching-role upper bits.
-The separate three-byte rotation indexes are unchanged.
-
-This means the save definitely stores all three Manage Rosters screens:
-- Pitching Rotation
-- Batting Order
-- Defensive Alignment
+Next: controlled edits to confirm hand/channel and appearance labels; fully map
+ID-index/table framing and headers; trace name generation and CAP lifecycle;
+validate edited saves in-game; implement explicit expanded profiles only after
+runtime serialization changes are proven. See [handoff.md](handoff.md) and
+[executable.md](executable.md) for the accepted 34-player/CAP-removal direction.
