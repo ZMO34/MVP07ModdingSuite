@@ -9,7 +9,7 @@ TEAM_COUNT = 152
 SAVE_TEAM_RECORD_SIZE = 727
 SAVE_ROSTER_SLOTS = 30
 SAVE_PLAYER_RECORD_SIZE = 84
-SAVE_PLAYER_CAPACITY = 4096
+SAVE_PLAYER_RECORDS = 3826
 SAVE_FIRST_NAME_SIZE = 12
 SAVE_LAST_NAME_SIZE = 16
 
@@ -41,7 +41,7 @@ class MemoryRosterSave:
         return self.raw[start:start + SAVE_TEAM_RECORD_SIZE]
 
     def player_record(self, index: int) -> bytes:
-        if not 0 <= index < SAVE_PLAYER_CAPACITY:
+        if not 0 <= index < SAVE_PLAYER_RECORDS:
             raise IndexError(index)
         start = self.player_base + index * SAVE_PLAYER_RECORD_SIZE
         return self.raw[start:start + SAVE_PLAYER_RECORD_SIZE]
@@ -56,7 +56,7 @@ class MemoryRosterSave:
 
     def populated_player_names(self) -> list[SavePlayerName]:
         out = []
-        for i in range(SAVE_PLAYER_CAPACITY):
+        for i in range(SAVE_PLAYER_RECORDS):
             rec = self.player_record(i)
             if not any(rec):
                 break
@@ -107,11 +107,11 @@ def _find_player_base(raw: bytes, search_from: int) -> int:
     # first_name[12] = "Default", last_name[16] = "Default".
     marker = b"Default\x00"
     pos = search_from
-    minimum = SAVE_PLAYER_CAPACITY * SAVE_PLAYER_RECORD_SIZE
+    minimum = SAVE_PLAYER_RECORDS * SAVE_PLAYER_RECORD_SIZE
     while True:
         pos = raw.find(marker, pos)
         if pos < 0:
-            raise ValueError("Could not locate 4096-record player array in save")
+            raise ValueError("Could not locate 3826-record player array in save")
         if pos + minimum <= len(raw):
             first = _cstr(raw[pos:pos + SAVE_FIRST_NAME_SIZE])
             last = _cstr(raw[pos + SAVE_FIRST_NAME_SIZE:pos + SAVE_FIRST_NAME_SIZE + SAVE_LAST_NAME_SIZE])
